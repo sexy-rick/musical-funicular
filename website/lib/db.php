@@ -1,13 +1,11 @@
 <?php
-// Database connection (server-side only, never output to browser)
 function db(): PDO {
     static $pdo = null;
     if ($pdo instanceof PDO) return $pdo;
-    $configPath = __DIR__ . '/../config.php';
-    if (!file_exists($configPath)) {
-        throw new RuntimeException('Database not configured. Copy config.example.php to config.php on the server.');
-    }
-    $cfg = require $configPath;
+    $path = __DIR__ . '/../config.php';
+    if (!is_file($path)) throw new RuntimeException('Configuration missing');
+    $cfg = require $path;
+    if (!is_array($cfg)) throw new RuntimeException('Configuration invalid');
     $dsn = 'mysql:host=' . $cfg['db_host'] . ';dbname=' . $cfg['db_name'] . ';charset=utf8mb4';
     $pdo = new PDO($dsn, $cfg['db_user'], $cfg['db_pass'], [
         PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
@@ -16,16 +14,22 @@ function db(): PDO {
     ]);
     return $pdo;
 }
-
 function e($value): string {
-    return htmlspecialchars((string)$value, ENT_QUOTES, 'UTF-8');
+    return htmlspecialchars((string)$value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 }
-
+function httpsUrl($value): string {
+    $url = (string)$value;
+    return filter_var($url, FILTER_VALIDATE_URL) && strtolower((string)parse_url($url, PHP_URL_SCHEME)) === 'https' ? $url : '';
+}
+function addonId(): string {
+    $id = $_GET['uuid'] ?? '';
+    return is_string($id) && preg_match('/^[A-Za-z0-9_-]{1,64}$/D', $id) ? $id : '';
+}
 function formatBytes($bytes): string {
     $bytes = (int)$bytes;
-    if ($bytes <= 0) return 'Unknown';
+    if ($bytes <= 0) return 'Size unknown';
     if ($bytes < 1024) return $bytes . ' B';
-    if ($bytes < 1024 * 1024) return round($bytes / 1024, 2) . ' KB';
-    if ($bytes < 1024 * 1024 * 1024) return round($bytes / (1024 * 1024), 2) . ' MB';
-    return round($bytes / (1024 * 1024 * 1024), 2) . ' GB';
+    if ($bytes < 1048576) return round($bytes / 1024, 1) . ' KB';
+    if ($bytes < 1073741824) return round($bytes / 1048576, 1) . ' MB';
+    return round($bytes / 1073741824, 1) . ' GB';
 }

@@ -1,0 +1,3 @@
+# Local and production secrets
+website/config.php
+.env
