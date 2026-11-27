@@ -1,0 +1,26 @@
+name: Create catalog D1 database
+on:
+  push:
+    branches:
+      - arena/e09cf031-musical-funicular
+    paths:
+      - telegram-catalog-bridge/cloudflare/create-d1-trigger.txt
+permissions:
+  contents: read
+jobs:
+  create-d1:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+      - name: Create and initialize a new D1 catalog
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN || secrets.TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID || vars.ID || secrets.CLOUDFLARE_ACCOUNT_ID || secrets.ID }}
+          REPOSITORY_ID: ${{ github.repository_id }}
+        run: node telegram-catalog-bridge/cloudflare/create-d1.cjs

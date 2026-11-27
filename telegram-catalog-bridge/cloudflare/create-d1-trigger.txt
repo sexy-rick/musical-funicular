@@ -1,0 +1,2 @@
+Initialize a new separate D1 catalog database after the Worker bootstrap.
+This file contains no credentials and does not change the Telegram database.
