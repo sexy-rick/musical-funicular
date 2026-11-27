@@ -6,6 +6,10 @@
 <details><summary>Do I need Telegram?</summary><p>Yes, the current download flow continues through our Telegram bot. Direct downloads on this site are not available yet.</p></details>
 <details><summary>Why can't I find an add-on?</summary><p>Try a shorter search or clear the category filter. Some items might not be listed yet.</p></details>
 <details><summary>What if the bot doesn't send the file?</summary><p>Check your connection and follow any prompts in the bot, including channel join instructions. Then try opening the add-on link again.</p></details>
+<details><summary>How do search and filters work?</summary><p>Search by title or creator, or use the filters button to choose a category and last-updated range. Apply filters to see results; Clear removes the selected filters.</p></details>
+<details><summary>Why are recently updated items shown after no matches?</summary><p>They are suggestions from the catalog, not matches for your search. The update date is not necessarily the original release date.</p></details>
+<details><summary>How do I share a listing?</summary><p>Tap Share to send a link. If sharing is unavailable, use Copy link and paste it into your message.</p></details>
+<details><summary>Is every listing available in the bot?</summary><p>Availability can change. If a file is missing, use the support links below for help.</p></details>
 <h2>Minecraft &amp; installation</h2><details><summary>How do I import a pack?</summary><p>On supported devices, open a compatible .mcpack or .mcaddon file with Minecraft. After importing, activate the relevant resource or behavior pack in your world settings if needed. Steps vary by device and file.</p></details>
 <details><summary>Will every add-on work with my game?</summary><p>Compatibility depends on the pack, device and Minecraft version. Check the available item details and back up important worlds before adding a pack.</p></details>
 <details><summary>Are these for Minecraft Java Edition?</summary><p>The catalog is intended for Minecraft Bedrock Edition. Bedrock add-ons should not be assumed to work with Java Edition.</p></details>
