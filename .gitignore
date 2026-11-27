@@ -1,3 +1,5 @@
 # Local and production secrets
 website/config.php
+telegram-catalog-bridge/website/config.php
+telegram-catalog-bridge/bot/lib/web_sync_private.js
 .env
