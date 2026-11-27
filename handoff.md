@@ -1,5 +1,15 @@
 # Handoff — Marketplace Trader
 
+## Catalog sharing build (2026-11-27)
+
+- Built local website catalog Download and Share buttons, detail Share, title/version/UUID share URLs with no repeated version, and `/home`; preserved old query detail links, bot payloads and host security query parameters. Added native share with copy/select fallback. New versioned assets `catalog-v5.js` / `site-v5.css`; no Worker, bot or database change.
+- PHP lint, Worker/bot unit tests, jsdom and mocked Chromium browser tests pass; phone CSS viewport breakpoints and stale-asset scenario exercised. Rebuilt and verified `website-upload.zip` with `.htaccess` and no real config. Apache rewrite execution and actual InfinityFree host are **unverified**: there is no local Apache binary; browser routing was simulated. After uploading, test `/home`, an old query URL, a shared slug and Android app handoff. Roll back website ZIP if rewrites fail; host may still add `?i=1`, and crawlers may not show rich previews. File download completion remains unverified. See `tasks/catalog-sharing-plan.md`.
+
+## Catalog sharing plan (2026-11-27)
+
+- User screenshots show Telegram opening in Firefox/on-device and a bot file message for InsaneCraft; actual completion of the file download, all items, and Chrome handoff remain unverified. Fresh live homepage fetch returned revised v4 design and 27 listed items. One screenshot shows three columns on a phone; device CSS viewport, zoom and desktop mode are unknown and need verification.
+- Planning only: `tasks/catalog-sharing-plan.md` covers separate catalog Download/Share controls, item-page Share, stable title/version/UUID URLs with existing route compatibility, `/home`, accessibility and live-host testing. InfinityFree can add `?i=1` during its mandatory browser check; do not bypass or promise its removal. Share preview crawlers may not pass that check. No implementation or deployment in this planning milestone.
+
 ## Telegram new-tab link (2026-11-27)
 
 - User requested a browser deep link that opens in a new tab. Local website now uses an ordinary user-activated `https://t.me/Mc_addonbot?start=<uuid>` link with `_blank` and `noopener noreferrer`; it retains the `tg://` direct-app link and manual `/start <uuid>` fallback. Asset filenames are now v4. No bot, Worker or database changes. Browser or network configuration can still prevent Telegram from opening; Android app launch and file delivery require actual device testing after upload.

@@ -7,6 +7,12 @@
 </FilesMatch>
 Options -Indexes
 
+# Only the named home and single-segment slug/UUID routes are rewritten.
+# Keep the original query string, including hosting-provider security parameters.
+RewriteEngine On
+RewriteRule ^home$ index.php [L,QSA]
+RewriteRule ^[a-z0-9]+(?:-[a-z0-9]+)*-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ addon.php [L,QSA,NC]
+
 # Local static error documents preserve the status when Apache serves them.
 # The hosting provider or an upstream proxy may override these responses.
 ErrorDocument 403 /errors/403.html

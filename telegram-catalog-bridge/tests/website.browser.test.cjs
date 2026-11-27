@@ -6,12 +6,15 @@ const assert=require('node:assert/strict'); const { chromium }=require('playwrig
 const root=join(__dirname,'../website');
 const render=file=>execFileSync('npx',['--yes','@php-wasm/cli',join(root,file)],{encoding:'utf8'});
 const html={ '/index.php':render('index.php'), '/faq.php':render('faq.php'), '/addon.php':render('addon.php') };
+html['/']=html['/index.php']; html['/home']=html['/index.php'];
+// Mimic the intended Apache rewrite for browser interaction tests; this is not an Apache test.
+const prettyRoute=/^\/[a-z0-9]+(?:-[a-z0-9]+)*-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const id='99eaa0fe-792a-4038-b588-e9ac2f02ce32';
 const item={uuid:id,title:'A very long add-on name '.repeat(5),creator:'Maker',category:'ADD-ON',thumbnail_url:'https://example.com/image.jpg'};
 // Simulate a returning visitor whose browser holds the old, unversioned assets.
 const oldCss=execFileSync('git',['show','e4d3499:telegram-catalog-bridge/website/assets/style.css']);
 const oldJs=execFileSync('git',['show','e4d3499:telegram-catalog-bridge/website/assets/catalog.js']);
-const server=http.createServer((req,res)=>{const path=new URL(req.url,'http://localhost').pathname; if(html[path]){res.setHeader('Content-Type','text/html');res.end(html[path]);return;} if(path==='/assets/style.css'||path==='/assets/catalog.js'){res.setHeader('Content-Type',path.endsWith('.css')?'text/css':'application/javascript');res.end(path.endsWith('.css')?oldCss:oldJs);return;} if(path==='/assets/site-v4.css'||path==='/assets/catalog-v4.js'){res.setHeader('Content-Type',path.endsWith('.css')?'text/css':'application/javascript');res.end(readFileSync(join(root,path)));return;}res.statusCode=404;res.end();});
+const server=http.createServer((req,res)=>{const path=new URL(req.url,'http://localhost').pathname; if(html[path] || prettyRoute.test(path)){res.setHeader('Content-Type','text/html');res.end(html[path] || html['/addon.php']);return;} if(path==='/assets/style.css'||path==='/assets/catalog.js'){res.setHeader('Content-Type',path.endsWith('.css')?'text/css':'application/javascript');res.end(path.endsWith('.css')?oldCss:oldJs);return;} if(path==='/assets/site-v5.css'||path==='/assets/catalog-v5.js'){res.setHeader('Content-Type',path.endsWith('.css')?'text/css':'application/javascript');res.end(readFileSync(join(root,path)));return;}res.statusCode=404;res.end();});
 (async()=>{
  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
  const browser=await chromium.launch({executablePath:await chrome.executablePath(),args:chrome.args,headless:true});
@@ -27,10 +30,24 @@ const server=http.createServer((req,res)=>{const path=new URL(req.url,'http://lo
    assert.equal(await page.locator('.main-nav').evaluate(e=>getComputedStyle(e).display),'flex');
    assert.ok(await page.locator('.footer-nav').evaluate(e=>parseFloat(getComputedStyle(e).gap)>0));
    assert.doesNotMatch(await page.locator('body').innerText(),/[✦✳✺▦↗↘↓←→⌕]/);
+   assert.equal(await page.locator('.card').first().locator('a button').count(),0);
+   assert.equal(await page.locator('.card-download').first().getAttribute('href'),'https://t.me/Mc_addonbot?start='+id);
+   assert.equal(await page.locator('.card .share-button').count(),8);
    if(process.env.CATALOG_SCREENSHOTS && (width===375 || width===1440)) await page.screenshot({path:`/tmp/catalog-${width}.png`,fullPage:true});
    console.log(`${width}px: ${result.columns} columns, no overflow, reduced motion`);
   }
-  await page.setViewportSize({width:375,height:800}); await page.goto(`http://127.0.0.1:${server.address().port}/faq.php`); await page.locator('summary').first().click(); assert.equal(await page.locator('details').first().evaluate(x=>x.open),true);
+  await page.setViewportSize({width:375,height:800});
+  const base=`http://127.0.0.1:${server.address().port}`;
+  assert.equal((await page.goto(`${base}/home?i=1`)).status(),200); await page.waitForSelector('.card');
+  await page.evaluate(()=>{Object.defineProperty(navigator,'share',{value:undefined,configurable:true});});
+  await page.locator('.card .share-button').first().click();
+  const sharedUrl=await page.locator('.card .share-url').first().inputValue();
+  assert.match(sharedUrl,new RegExp('^http://127\\.0\\.0\\.1:[0-9]+/[a-z0-9-]+-'+id+'$'));
+  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false,'share fallback overflow');
+  await page.goto(sharedUrl+'?i=1&uuid=00000000-0000-0000-0000-000000000000'); await page.waitForSelector('.actions a');
+  assert.equal(await page.locator('.actions a').first().getAttribute('href'),'https://t.me/Mc_addonbot?start='+id);
+  assert.equal((await page.goto(`${base}/missing-slug-not-a-uuid`)).status(),404);
+  await page.goto(`${base}/faq.php`); await page.locator('summary').first().click(); assert.equal(await page.locator('details').first().evaluate(x=>x.open),true);
   await page.keyboard.press('Tab'); assert.ok(await page.evaluate(()=>document.activeElement!==document.body));
   await page.goto(`http://127.0.0.1:${server.address().port}/addon.php?uuid=${id}`); await page.waitForSelector('.actions a');
   const primary=page.locator('.actions a').nth(0);

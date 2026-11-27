@@ -9,9 +9,40 @@
   const safeUrl = value => { try { const u = new URL(value); return u.protocol === 'https:' && !u.username && !u.password ? u.href : ''; } catch (_) { return ''; } };
   const bytes = n => { n = Number(n); if (!Number.isFinite(n) || n <= 0) return ''; if (n < 1024) return n + ' B'; if (n < 1048576) return Math.round(n / 102.4) / 10 + ' KB'; if (n < 1073741824) return Math.round(n / 104857.6) / 10 + ' MB'; return Math.round(n / 107374182.4) / 10 + ' GB'; };
   const valid = item => item && typeof item.uuid === 'string' && idPattern.test(item.uuid) && typeof item.title === 'string' && item.title.trim();
-  const detailUrl = id => 'addon.php?uuid=' + encodeURIComponent(id);
+  const slugify = text => String(text || '').normalize('NFKD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'');
+  function detailUrl(item) {
+    let title = slugify(item.title).slice(0, 64).replace(/-+$/,'') || 'addon';
+    const version = slugify(item.version).replace(/^v(?=\d)/,'').slice(0,24).replace(/-+$/,'');
+    if (version && !('-'+title+'-').includes('-'+version+'-') && !('-'+title+'-').includes('-v'+version+'-')) title += '-'+version;
+    return '/'+title+'-'+item.uuid.toLowerCase();
+  }
+  function telegram(item, label, className) {
+    const a=link(label,'https://t.me/Mc_addonbot?start='+encodeURIComponent(item.uuid),className);
+    a.target='_blank'; a.rel='noopener noreferrer'; return a;
+  }
+  function shareControls(item) {
+    const box=el('div','share-controls');
+    const button=el('button','share-button','Share'); button.type='button'; button.setAttribute('aria-label','Share '+item.title);
+    const fallback=el('div','share-fallback'); fallback.hidden=true;
+    const label=el('label','','Link to '+item.title); const input=el('input','share-url'); input.type='text'; input.readOnly=true; input.value=new URL(detailUrl(item),location.origin).href; label.append(input);
+    const copy=el('button','share-copy','Copy link'); copy.type='button';
+    const status=el('p','share-status'); status.setAttribute('role','status');
+    fallback.append(label,copy,status);
+    button.addEventListener('click',async()=>{
+      if (typeof navigator.share === 'function') {
+        try { await navigator.share({title:item.title,url:input.value}); return; }
+        catch (error) { if (error && error.name === 'AbortError') return; }
+      }
+      fallback.hidden=false; status.textContent='Copy or select the link below.';
+    });
+    copy.addEventListener('click',async()=>{
+      try { if (!navigator.clipboard || !navigator.clipboard.writeText) throw new Error('Unavailable'); await navigator.clipboard.writeText(input.value); status.textContent='Link copied.'; }
+      catch (_) { input.focus(); input.select(); status.textContent='Select and copy the link above.'; }
+    });
+    box.append(button,fallback); return box;
+  }
   const finish = target => target.setAttribute('aria-busy', 'false');
-  const empty = (title, message) => { const box = el('div','empty'); box.append(el('h2','',title),el('p','',message),link('Browse the collection','index.php#catalog','btn btn-primary')); return box; };
+  const empty = (title, message) => { const box = el('div','empty'); box.append(el('h2','',title),el('p','',message),link('Browse the collection','/index.php#catalog','btn btn-primary')); return box; };
   const noindex = () => { let meta = document.querySelector('meta[name="robots"]'); if (!meta) { meta = el('meta'); meta.name = 'robots'; document.head.append(meta); } meta.content = 'noindex'; };
   const missing = target => { noindex(); target.replaceChildren(empty('Add-on not found','This listing may have moved or is no longer available.')); finish(target); };
   function fail(target, run, status) {
@@ -28,13 +59,15 @@
     const img=el('img'); img.alt=''; img.width=640; img.height=360; img.loading=eager ? 'eager' : 'lazy'; img.addEventListener('error',fallback,{once:true}); img.src=url; node.append(img);
   }
   function card(item, index) {
-    const article=el('article','card'); const anchor=link('',detailUrl(item.uuid),'card-link'); const cover=el('div','card-image');
+    const article=el('article','card'); const anchor=link('',detailUrl(item),'card-link'); const cover=el('div','card-image');
     const visibleColumns=window.innerWidth>=1024 ? 4 : window.innerWidth>=900 ? 3 : window.innerWidth>=600 ? 2 : 1;
     image(cover,item,index < visibleColumns);
     const body=el('div','card-body'); body.append(el('h3','',item.title));
     const meta=el('p','card-creator'); const creator=typeof item.creator === 'string' && item.creator.trim() ? item.creator : 'Creator not listed'; meta.append(document.createTextNode(creator));
     if (typeof item.category === 'string' && item.category.trim()) meta.append(el('span','card-category',item.category.toLowerCase()));
-    body.append(meta); anchor.append(cover,body); article.append(anchor); return article;
+    body.append(meta); anchor.append(cover,body);
+    const actions=el('div','card-actions'); const download=telegram(item,'Download','card-download'); download.setAttribute('aria-label','Download '+item.title+' in Telegram'); actions.append(download,shareControls(item));
+    article.append(anchor,actions); return article;
   }
   async function request(path) {
     const controller = new AbortController(); const timer = setTimeout(() => controller.abort(), 12000);
@@ -54,7 +87,7 @@
       const count=document.querySelector('.count'); if (count) count.textContent=Number(data.total)+' listed';
       if (!data.items.length) { target.replaceChildren(empty('Nothing here just yet','Try another category or check back soon.')); finish(target); return; }
       showGrid(target,data.items); const pages=Math.max(1,Math.ceil(Number(data.total)/24));
-      if (pages>1) { const nav=el('nav','pagination'); nav.setAttribute('aria-label','Catalog pages'); const href=p=>'index.php?'+new URLSearchParams({...(cat ? {cat} : {}),page:String(p)})+'#catalog'; if(page>1) nav.append(link('Previous',href(page-1))); nav.append(el('span','',`Page ${page} of ${pages}`)); if(page<pages) nav.append(link('Next',href(page+1))); target.append(nav); }
+      if (pages>1) { const nav=el('nav','pagination'); nav.setAttribute('aria-label','Catalog pages'); const href=p=>'/index.php?'+new URLSearchParams({...(cat ? {cat} : {}),page:String(p)})+'#catalog'; if(page>1) nav.append(link('Previous',href(page-1))); nav.append(el('span','',`Page ${page} of ${pages}`)); if(page<pages) nav.append(link('Next',href(page+1))); target.append(nav); }
       finish(target);
     } catch (error) { const count=document.querySelector('.count'); if (count) count.textContent=''; fail(target,catalog,error.status); }
   }
@@ -65,19 +98,20 @@
     try { const data=await request('/addons?'+new URLSearchParams({q})); if(!Array.isArray(data.items)) throw new Error('Invalid response'); if(!data.items.length) target.replaceChildren(empty('No matches found','Try a shorter search term or browse the collection.')); else { showGrid(target,data.items); if(Number(data.total)>24) target.prepend(el('p','search-note','Showing the first 24 results. Try a more specific search.')); } finish(target); } catch(error) { fail(target,search,error.status); }
   }
   async function addon() {
-    const target=document.getElementById('addon-results'); if (!target) return; const id=params.get('uuid') || '';
+    const target=document.getElementById('addon-results'); if (!target) return;
+    const pretty=location.pathname.match(/^\/[a-z0-9]+(?:-[a-z0-9]+)*-([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i);
+    const id=pretty ? pretty[1] : (params.get('uuid') || '');
     if(!idPattern.test(id)) { missing(target); return; }
     loading(target,'Loading add-on…');
     try {
-      const data=await request('/addons/'+encodeURIComponent(id)); const item=data.item; if(!valid(item)) throw new Error('Invalid response');
+      const data=await request('/addons/'+encodeURIComponent(id)); const item=data.item; if(!valid(item) || item.uuid.toLowerCase()!==id.toLowerCase()) throw new Error('Invalid response');
       document.title=item.title+' | Marketplace Trader'; const detail=el('div','detail'); const cover=el('div','detail-image'); image(cover,item,true); const content=el('div','detail-content');
       content.append(el('span','eyebrow',item.category || 'ADD-ON'),el('h1','',item.title),el('p','detail-creator',item.creator ? 'By '+item.creator : 'Creator not listed'));
       const meta=el('div','metadata'); const size=bytes(item.file_size); if(size) meta.append(el('span','',size)); if(item.version) meta.append(el('span','','Version '+item.version)); if(item.file_ext) meta.append(el('span','',String(item.file_ext).toUpperCase())); if(meta.children.length) content.append(meta);
       const payload=encodeURIComponent(item.uuid);
       const actions=el('div','actions');
-      const telegramLink=link('Open in Telegram','https://t.me/Mc_addonbot?start='+payload,'btn btn-primary');
-      telegramLink.target='_blank'; telegramLink.rel='noopener noreferrer';
-      actions.append(telegramLink,link('Try opening the app directly','tg://resolve?domain=Mc_addonbot&start='+payload,'text-link'));
+      const telegramLink=telegram(item,'Open in Telegram','btn btn-primary');
+      actions.append(telegramLink,shareControls(item),link('Try opening the app directly','tg://resolve?domain=Mc_addonbot&start='+payload,'text-link'));
       content.append(actions,el('p','action-note','The Telegram link opens in a new tab or the app. Allow your browser to open Telegram if prompted, then tap Start if it appears.'));
       const help=el('details','telegram-help'); help.append(el('summary','','Telegram not opening?'));
       help.append(el('p','','Open the Telegram app, search for @Mc_addonbot, and send this message to the bot:'));
@@ -85,7 +119,7 @@
       help.append(el('p','','Then follow the bot’s instructions. The file may not be available for every listing.'));
       content.append(help);
       const market=safeUrl(item.marketplace_url); if(market) { const p=el('p'); const a=link('View on Marketplace',market,'text-link'); a.target='_blank'; a.rel='noopener noreferrer'; p.append(a); content.append(p); }
-      const install=el('div','install'); install.append(el('h2','','How to get started')); const list=el('ol'); for(const step of ['Open the bot and follow its instructions.','Download the file in Telegram if it is available.','On supported devices, open a compatible pack with Minecraft and enable it in your world settings.']) list.append(el('li','',step)); install.append(list,link('Need help? Visit the FAQ','faq.php','text-link')); content.append(install); detail.append(cover,content); target.replaceChildren(detail); finish(target);
+      const install=el('div','install'); install.append(el('h2','','How to get started')); const list=el('ol'); for(const step of ['Open the bot and follow its instructions.','Download the file in Telegram if it is available.','On supported devices, open a compatible pack with Minecraft and enable it in your world settings.']) list.append(el('li','',step)); install.append(list,link('Need help? Visit the FAQ','/faq.php','text-link')); content.append(install); detail.append(cover,content); target.replaceChildren(detail); finish(target);
     } catch(error) { if(error.status===404) missing(target); else fail(target,addon,error.status); }
   }
   catalog(); search(); addon();
