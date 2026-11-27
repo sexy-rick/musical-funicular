@@ -2,6 +2,14 @@
 
 Date: 2026-11-27. Scope: user-reported bridge website mobile layout, deployed static assets, navigation and decorative symbols. This is a focused investigation, not a complete security or application audit.
 
+## Telegram handoff stalls (2026-11-27)
+
+**Observed:** User's screenshots show Bio Dome detail loaded and `t.me` stalled in a blank Android browser/custom tab with a progress line. The browser address bar appears to show a different start value in one screenshot, so do not infer that screenshot's complete URL or payload from its truncated text. This is no longer the website's catalog-loading state. Exact cause is unknown: network access, app link handling, browser or Telegram could be involved.
+
+**Checks:** The live Bio Dome page independently generated `https://t.me/Mc_addonbot?start=037f9836-628f-4213-b42d-f03e080ca2e0`. Telegram's web page responded to a fetch from this environment with the matching `tg://resolve?domain=Mc_addonbot&start=...` link. That does not prove reachability or app launch on the user's phone, nor file availability. Telegram documents both link forms: <https://core.telegram.org/api/links#bot-links>. The revision-66 source accepts `/start <uuid>`; the user reports the live bot is revision 68, so actual behavior must be checked on-device.
+
+**Local mitigation:** `catalog-v3.js` provides direct Telegram-app (`tg://`) and standard web (`https://t.me`) options plus a manual `/start <uuid>` fallback; does not try to detect app installation or automatically redirect. The browser/device may block the native scheme, so no guaranteed launch. No Worker, bot or schema change. Tests verify link payloads and manual fallback, not real app launch or delivery. Upload revised ZIP and validate with user on real device.
+
 ## P1: Mixed old and new UI assets
 
 **Evidence:** User screenshots show new page text and navigation mixed with old 2-column cards, old button/body styles and unstyled newer markup. At investigation time, an independent fresh fetch of the live `assets/style.css` and `assets/catalog.js` returned the newer files, and the live home returned new markup and 23 listings. The phone's exact cache contents and upload ordering were not observed, so stale browser/intermediary cache or timing is a strong hypothesis, not a proven diagnosis.

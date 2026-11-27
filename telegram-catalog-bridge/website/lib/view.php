@@ -5,7 +5,7 @@ function pageHeader(string $title, string $query = ''): void {
     ?>
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title><?= e($title) ?> | Marketplace Trader</title><meta name="theme-color" content="#151b17"><link rel="stylesheet" href="assets/site-v2.css"></head>
+<title><?= e($title) ?> | Marketplace Trader</title><meta name="theme-color" content="#151b17"><link rel="stylesheet" href="assets/site-v3.css"></head>
 <body><a class="skip-link" href="#main-content">Skip to content</a><header class="site"><div class="header-inner">
 <a class="brand" href="index.php" aria-label="Marketplace Trader home"><span class="brand-mark" aria-hidden="true">M</span><span>Marketplace <strong>Trader</strong></span></a>
 <form class="search" action="search.php" method="get" role="search"><label class="sr-only" for="search">Search add-ons and creators</label><input id="search" name="q" type="search" value="<?= e($query) ?>" placeholder="Search add-ons or creators" maxlength="100"><button type="submit">Search</button></form>

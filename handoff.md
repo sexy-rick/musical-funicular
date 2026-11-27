@@ -1,5 +1,11 @@
 # Handoff — Marketplace Trader
 
+## Telegram opening investigation (2026-11-27)
+
+- User supplied screenshots: Bio Dome detail loaded, then blank `t.me` browser/custom tab with a loading bar. The assistant initially misidentified the line; acknowledged correction. Cause unproven. Live Bio Dome link correctly includes `037f9836-628f-4213-b42d-f03e080ca2e0` and Telegram's t.me preview responds in our environment, but not proof of access on their phone. One screenshot address is truncated and appears to show a different start value; do not assume the complete URL.
+- Local mitigation: website detail offers direct `tg://` app link, original HTTPS link, and manual `/start <uuid>` instructions. Versioned assets moved to v3. Both link formats are documented by Telegram; app opening and actual file delivery remain untested on Android. No bot, Worker or schema changes; live bot revision 68 was reported by user. See `tasks/bug-report.md`.
+- Rebuilt and verified `website-upload.zip` (no private config). PHP lint, jsdom and Chromium mock website tests passed, including app/web/manual UUID links and 320px overflow. Upload ZIP to take effect; preserve `config.php`. On-phone app launch and file delivery remain unchecked. Custom app links may be blocked, and the t.me/network problem may remain.
+
 ## Mobile correction milestone (2026-11-27)
 
 - User uploaded the earlier redesign but screenshots showed new markup paired with old two-column card styling, unstyled header/footer and unwanted decorative symbols. Independent fresh live fetch returned new CSS/JS and 23 catalog listings; the exact state of the phone/browser cache and upload timing is unknown. Live FAQ also rendered. Full import and Telegram delivery remain unverified.

@@ -73,7 +73,15 @@
       document.title=item.title+' | Marketplace Trader'; const detail=el('div','detail'); const cover=el('div','detail-image'); image(cover,item,true); const content=el('div','detail-content');
       content.append(el('span','eyebrow',item.category || 'ADD-ON'),el('h1','',item.title),el('p','detail-creator',item.creator ? 'By '+item.creator : 'Creator not listed'));
       const meta=el('div','metadata'); const size=bytes(item.file_size); if(size) meta.append(el('span','',size)); if(item.version) meta.append(el('span','','Version '+item.version)); if(item.file_ext) meta.append(el('span','',String(item.file_ext).toUpperCase())); if(meta.children.length) content.append(meta);
-      const actions=el('div','actions'); actions.append(link('Open in Telegram','https://t.me/Mc_addonbot?start='+encodeURIComponent(item.uuid),'btn btn-primary')); content.append(actions,el('p','action-note','Continue in Telegram and follow the bot’s instructions to receive the file.'));
+      const payload=encodeURIComponent(item.uuid);
+      const actions=el('div','actions');
+      actions.append(link('Open Telegram app','tg://resolve?domain=Mc_addonbot&start='+payload,'btn btn-primary'),link('Open Telegram web link','https://t.me/Mc_addonbot?start='+payload,'text-link'));
+      content.append(actions,el('p','action-note','Allow your browser to open Telegram if prompted. In the bot, tap Start if it appears.'));
+      const help=el('details','telegram-help'); help.append(el('summary','','Telegram not opening?'));
+      help.append(el('p','','Open the Telegram app, search for @Mc_addonbot, and send this message to the bot:'));
+      help.append(el('p','manual-command','/start '+item.uuid));
+      help.append(el('p','','Then follow the bot’s instructions. The file may not be available for every listing.'));
+      content.append(help);
       const market=safeUrl(item.marketplace_url); if(market) { const p=el('p'); const a=link('View on Marketplace',market,'text-link'); a.target='_blank'; a.rel='noopener noreferrer'; p.append(a); content.append(p); }
       const install=el('div','install'); install.append(el('h2','','How to get started')); const list=el('ol'); for(const step of ['Open the bot and follow its instructions.','Download the file in Telegram if it is available.','On supported devices, open a compatible pack with Minecraft and enable it in your world settings.']) list.append(el('li','',step)); install.append(list,link('Need help? Visit the FAQ','faq.php','text-link')); content.append(install); detail.append(cover,content); target.replaceChildren(detail); finish(target);
     } catch(error) { if(error.status===404) missing(target); else fail(target,addon,error.status); }
