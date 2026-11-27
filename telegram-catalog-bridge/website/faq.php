@@ -1,0 +1,13 @@
+<?php require __DIR__ . '/lib/db.php'; require __DIR__ . '/lib/view.php'; pageHeader('Help and frequently asked questions'); ?>
+<section class="info-page faq-page"><a class="back" href="index.php#catalog">← Back to collection</a><div class="info-hero"><span class="eyebrow">HERE TO HELP</span><h1>Questions?<br><em>We've got you.</em></h1><p>A few helpful things to know before your next adventure.</p></div><div class="faq-layout"><aside class="faq-intro"><span class="note-symbol" aria-hidden="true">✳</span><h2>The essentials</h2><p>From finding a pack to opening it in Minecraft, start here.</p><a href="https://t.me/Mc_addonbot" class="text-link">Open the Telegram bot ↗</a></aside><div class="faq-list"><h2>Browsing &amp; downloading</h2>
+<details><summary>What is Marketplace Trader?</summary><p>It's a community catalog for discovering Minecraft Bedrock add-ons, textures, worlds and other listed content.</p></details>
+<details><summary>How do I download an add-on?</summary><p>Open an add-on in the collection, select “Open in Telegram”, and follow the bot's instructions. You may be asked to join a channel first.</p></details>
+<details><summary>Do I need Telegram?</summary><p>Yes, the current download flow continues through our Telegram bot. Direct downloads on this site are not available yet.</p></details>
+<details><summary>Why can't I find an add-on?</summary><p>Try a shorter search or clear the category filter. Some items might not be listed yet.</p></details>
+<details><summary>What if the bot doesn't send the file?</summary><p>Check your connection and follow any prompts in the bot, including channel join instructions. Then try opening the add-on link again.</p></details>
+<h2>Minecraft &amp; installation</h2><details><summary>How do I import a pack?</summary><p>On supported devices, open a compatible .mcpack or .mcaddon file with Minecraft. After importing, activate the relevant resource or behavior pack in your world settings if needed. Steps vary by device and file.</p></details>
+<details><summary>Will every add-on work with my game?</summary><p>Compatibility depends on the pack, device and Minecraft version. Check the available item details and back up important worlds before adding a pack.</p></details>
+<details><summary>Are these for Minecraft Java Edition?</summary><p>The catalog is intended for Minecraft Bedrock Edition. Bedrock add-ons should not be assumed to work with Java Edition.</p></details>
+<details><summary>Why isn't the collection loading?</summary><p>Check your internet connection and enable JavaScript, then try again. The catalog service may sometimes be temporarily unavailable.</p></details>
+</div></div></section>
+<?php pageFooter(); ?>

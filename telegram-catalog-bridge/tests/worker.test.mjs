@@ -9,7 +9,13 @@ const env = {SYNC_SECRET:'a'.repeat(64), CATALOG:{prepare(sql){return {bind(...p
 async function req(path, opts={}) { const res = await worker.fetch(new Request('https://example.workers.dev'+path,opts),env); return [res.status, await res.json()]; }
 const uuid='99eaa0fe-792a-4038-b588-e9ac2f02ce32';
 const payload={action:'upsert',uuid,title:'Test pack',creator:'Player',category:'ADD-ON',file_size:1024,updated_at:100};
-function post(body, token=env.SYNC_SECRET) {return req('/sync',{method:'POST',headers:{'x-sync-token':token},body:JSON.stringify(body)});}
+function post(body, token=env.SYNC_SECRET) {return req('/sync',{method:'POST',headers:{'x-sync-token':token,'content-type':'application/json'},body:JSON.stringify(body)});}
+const syncHeaders={'x-sync-token':env.SYNC_SECRET,'content-type':'application/json'};
+assert.equal((await req('/sync',{method:'POST',headers:{'x-sync-token':env.SYNC_SECRET},body:'{}'}))[0],415);
+assert.equal((await req('/sync',{method:'POST',headers:syncHeaders,body:'x'.repeat(32769)}))[0],413);
+assert.equal((await req('/sync',{method:'POST',headers:syncHeaders,body:'é'.repeat(16385)}))[0],413);
+assert.equal((await req('/sync',{method:'POST',headers:{...syncHeaders,'content-length':'1'},body:'x'.repeat(32769)}))[0],413);
+assert.equal((await req('/sync',{method:'POST',headers:syncHeaders,body:'not json'}))[0],400);
 assert.equal((await req('/health'))[0],200);
 assert.equal((await post(payload,'wrong'))[0],401);
 assert.equal((await post(payload))[0],200);

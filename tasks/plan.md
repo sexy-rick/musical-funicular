@@ -1,379 +1,160 @@
-# Plan: Minecraft Add-on Website + Telegram Bot (Download-Only MVP)
+# Plan — Marketplace Trader: research-to-release roadmap
 
-**Owner:** sexy-rick / Mc_addonbot
 **Date:** 2026-11-27
-**Budget:** $0
-**Status:** Planned — ready for `/Build`
-
-## 1. Goal
-
-A public website on InfinityFree (free tier + subdomain) that lists Minecraft Bedrock add-ons from the existing Telegram bot (`@Mc_addonbot`) and lets visitors **download directly in the browser** — no login, no paywall, no link shortener.
-
-V1 is **download-only** (browse → search → detail → download). Request forms, admin upload, and stats come later, after v1 succeeds.
-
-## 1.5 Vibecoder roadmap — step by step, little steep at a time
-
-No deep tech needed. Think of the website like this:
-
-| Piece | Simple meaning | Analogy |
-|---|---|---|
-| **HTML** | The skeleton — what text/buttons exist | House frame |
-| **CSS** | The clothes — colors, spacing, looks nice on phone | Paint + furniture |
-| **PHP** | The brain — connects pages to the notebook | Manager |
-| **SQL / MySQL** | The notebook — list of add-ons (name, creator, download link) | Notebook |
-| **Cloudflare R2** | The warehouse — stores the actual `.mcaddon` files | Warehouse |
-| **InfinityFree** | The house — where the website lives (free subdomain) | House |
-| **Telegram bot** | The delivery boy — fallback if warehouse is down | Delivery boy |
-
-**Order matters.** We build warehouse → house → notebook → pages. One small step at a time. You never do two steps at once.
-
-### Step 1 — Warehouse (Cloudflare R2) — PAUSED (no card right now, do later)
-- **Status 2026-11-27:** User has no card right now. R2 deferred. Interim warehouse = **GitHub Releases** (no card, 2 GiB/file, unlimited bandwidth).
-- When card is available: create Cloudflare account → R2 → Create bucket named `mc-addons` → turn on public access → get `https://pub-xxx.r2.dev`
-- **Done when (later):** you have a bucket URL like `https://pub-xxx.r2.dev`
-- *Migration later is easy: just change `file_url` in the notebook from GitHub URL to R2 URL. No page changes.*
-- **Next now → Step 2 (InfinityFree house, no card needed).**
-
-### Step 2 — House (InfinityFree) — YOU do, 10 min
-- Create free InfinityFree account → add subdomain (e.g. `mcaddons.infinityfreeapp.com`)
-- Open VistaPanel → note your username + `htdocs` folder
-- **Done when:** you can open `https://your-subdomain.infinityfreeapp.com` and see "Welcome to InfinityFree"
-- *I give you the exact clicks. No code here.*
-
-### Step 3 — Notebook (MySQL) — I build, YOU paste, 5 min
-- I write one small SQL file that creates the `addons` notebook (list of add-ons)
-- You open phpMyAdmin in VistaPanel → SQL tab → paste → Go
-- **Done when:** you see an empty `addons` table in phpMyAdmin
-- *You don't write SQL. You just paste what I give you.*
-
-### Step 4 — Pages you see (HTML + CSS) — I build, 0 min for you
-- I build `index.php` (home grid), `addon.php` (detail page), search box
-- HTML = skeleton, CSS = clothes. You just look at it on your phone.
-- **Done when:** you can open the site and see a pretty grid (empty at first — that's ok)
-
-### Step 5 — Brain (PHP) — I build, 0 min for you
-- PHP connects the pages to the notebook. When someone clicks Download, PHP reads the notebook and sends them to the warehouse file.
-- **Done when:** clicking a test add-on tries to download (even if file not there yet)
-
-### Step 6 — First 5 files — YOU upload, I add to notebook, 15 min
-- You upload 5 `.mcaddon` files to your R2 warehouse (drag + drop in Cloudflare dashboard)
-- You copy the 5 file URLs and send them to me
-- I add those 5 to the notebook (SQL insert)
-- **Done when:** you can download those 5 files from the website on your phone
-
-### Step 7 — Telegram fallback button — I build, 0 min for you
-- I add a second button: "Download via Telegram" → opens `t.me/Mc_addonbot?start=<uuid>`
-- Your bot already knows how to send the file. No bot change.
-- **Done when:** both buttons work on the same add-on page
-
-### Step 8 — Go live + lock (SSL) — YOU click, I guide, 5 min
-- VistaPanel → SSL → free Let's Encrypt → activate
-- Site now shows `https://` with a lock. Visitors trust it.
-- **Done when:** `https://` works, no "Not Secure" warning
-
-**Total for you:** ~45 min of clicking across 8 small steps. All code is mine. If any step feels steep, stop there and tell me — we finish that one step before moving on.
-
-## 2. Constraints (locked)
-
-| Constraint | Value | Source |
-|---|---|---|
-| Budget | $0, no credit card | User |
-| Website host | InfinityFree free + free subdomain | User |
-| Bot host | Telegram serverless (JS, `sdk` / `sdk/db`) | User + code |
-| Bot username | `Mc_addonbot` | `Mc_addonbot/lib/config.js` |
-| Main channel | `@Minecraft_addon_free_download` | `config.js` |
-| File types | `.mcaddon`, `.mcpack`, `.mcworld`, `.mctemplate`, `.apk`, `.zip` | `handle_media.js` |
-
-## 3. What exists today (codebase map)
-
-Extracted from `Mc_addonbot_code_backup_rev66.zip` → `Mc_addonbot/` (17 files, 3,276 lines).
-
-| File | Role |
-|---|---|
-| `schema.js` | DB tables: `users`, `files` (uuid PK, file_id, type, category, name, items JSON, caption, marketplace_url, thumbnail_url, title, creator, message_link, version, version_key, updated_at), `upload_sessions`, `post_sessions` |
-| `handlers/message.js` | Dispatcher: help → delete → forward → post → upload → media → start |
-| `handlers/callback_query.js` | Inline-button callbacks (upload flow) |
-| `handlers/chat_member.js` | Join/leave events → `info.js` |
-| `lib/config.js` | Bot username, admin ID, channel IDs/URLs, required channels, custom emoji IDs |
-| `lib/start.js` | `/start` + join-gate + deep-link download (`?start=<uuid>`), `parseStartPayload()` |
-| `lib/handle_media.js` (908 lines) | Admin upload flow, category detection (`.mcaddon`→ADD-ON, `.mcpack`→SKIN/TEXTURE, etc.), Marketplace metadata |
-| `lib/marketplace.js` (533 lines) | Fetches Marketplace metadata (title, creator, category, price, thumbnail), UUID extraction |
-| `lib/upload.js` | Multi-channel upload session (toggle channels, start/finish) |
-| `lib/post.js`, `lib/forward.js` | Channel posting / forwarding |
-| `lib/delete.js` | `/delete <uuid|link>` — deletes file record + channel message |
-| `lib/info.js`, `lib/help.js`, `lib/diag.js`, `lib/restore.js`, `lib/ui.js` | User info, help text, error diagnostics, legacy restore, HTML escape + inline keyboards |
-
-**Key contract already in the bot:** `https://t.me/Mc_addonbot?start=<uuid>` downloads a file by UUID. The website reuses this as a fallback — no bot change needed for v1.
-
-## 4. Verified facts (researched 2026-11-27)
-
-**InfinityFree free tier:**
-- 5 GB storage, unlimited bandwidth on paper, 50,000 daily hits cap, 30,000 inode cap [4](https://digitalprahlad.com/best-free-web-hosting-providers/)
-- PHP up to 8.3 (8.2 not on free tier), MySQL 5.6, 400 databases with **50 MB cap per DB** [1](https://blog.webhostmost.com/infinityfree-review-2026/)
-- **10 MB per-file upload limit** — files larger than 10 MB cannot be uploaded to `htdocs` [1](https://forum.infinityfree.com/t/how-to-upload-big-files-archives/49305)
-- Free SSL via Let's Encrypt in VistaPanel, no forced ads [1](https://blog.webhostmost.com/infinityfree-review-2026/)
-- No cron / background jobs, community-forum support only, risk of suspension if no traffic for 24h [3](https://www.aeserver.com/free-vs-paid-web-hosting/)
-
-**Direct-download storage (browser download, $0):**
-- **GitHub Releases:** up to **2 GiB per file**, no total-size or bandwidth limit, served via GitHub CDN, no credit card [1](https://michaelaye.github.io/posts/github-releases-as-data-cdn/) [3](https://compresto.app/blog/github-file-size-limit)
-- **Cloudflare R2:** 10 GB free storage/month, **free egress (unlimited bandwidth)**, 1M Class A + 10M Class B ops free [1](https://developers.cloudflare.com/r2/pricing/) — but requires a payment method on file even for the free tier.
-- **InfinityFree `htdocs`:** direct download works, but capped at 10 MB/file [1](https://forum.infinityfree.com/t/how-to-upload-big-files-archives/49305)
-
-**Serverless Telegram bots:**
-- Cloudflare Workers free tier ~100,000 requests/day, AWS Lambda 1M invocations/month — a small webhook bot fits in $0 [1](https://aziqdev.com/blog/telegram-bot-hosting-cost) [2](https://filtori.com/en/articles/telegram-serverless-bot/)
-- Your bot's `sdk` / `sdk/db` pattern matches a Workers-style serverless runtime (edge JS + hosted DB). No shared DB with InfinityFree MySQL — integration must be HTTP (deep link / webhook), not a direct DB connection.
-
-## 5. Architecture decision (Minimalism Ladder)
-
-**Question:** "Can users download directly from the website?" — **Yes**, with one rule: don't store big binaries on InfinityFree.
-
-```
-Visitor browser
-  │
-  ├─► InfinityFree (PHP + MySQL) — catalog, search, detail pages
-  │     │  reads
-  │     ▼
-  │   MySQL `addons` table (≤50 MB, catalog only — no binaries)
-  │
-  ├─► Direct download (primary NOW): GitHub Releases URL (no card)
-  │     https://github.com/<owner>/<repo>/releases/download/<tag>/<file>.mcaddon
-  │     (2 GiB/file, unlimited bandwidth, no card)
-  │
-  ├─► Direct download (primary LATER): Cloudflare R2 public URL
-  │     https://pub-xxx.r2.dev/addons/<uuid>/<file>.mcaddon
-  │     (10 GB free, free egress, CDN — needs card, deferred)
-  │     Hard cap enforced in code at 9.4 GB (see §11.1, applies when R2 is live)
-  │
-  └─► Fallback: Telegram deep link
-        https://t.me/Mc_addonbot?start=<uuid>
-        (bot sends file via file_id — already works, zero change)
-```
-
-**Why this wins on the ladder:**
-1. **YAGNI:** No login, no upload, no request form in v1 — download-only as requested.
-2. **Reuse:** Reuse the bot's existing `files` fields + `?start=<uuid>` deep link. No bot rewrite.
-3. **Stdlib / Platform native:** Vanilla PHP + MySQL + HTML/CSS/JS. No framework, no build step, no npm, no Composer — InfinityFree has no Node.
-4. **Existing deps:** None. Zero packages to install.
-5. **Direct code:** One `index.php`, one `addon.php`, one `download.php`, one `search.php`, one `sync.php` (import endpoint).
-
-**Storage ranking for direct browser download ($0):**
-1. **GitHub Releases (primary NOW, no card)** — free, no card, 2 GiB/file, unlimited bandwidth. Use this until card is available.
-2. **Cloudflare R2 (primary LATER, per user choice)** — 10 GB free + free egress, CDN, needs card on file (Discover accepted). Hard cap at 9.4 GB enforced in code (see §11.1). Migrate by changing `file_url` only.
-3. **InfinityFree htdocs (small files only)** — fine for thumbnails and <10 MB packs, not for large add-ons.
-4. **Telegram `file_id` (fallback only)** — not a browser URL; needs the bot. Keep as "Download via Telegram" button.
-
-## 6. Contracts (frozen for v1)
-
-### 6.1 Website MySQL table `addons`
-
-Mirrors the bot's `files` table so a future sync is a straight copy:
-
-```sql
-CREATE TABLE addons (
-  uuid            VARCHAR(36) PRIMARY KEY,  -- Marketplace UUID, same as bot
-  title           VARCHAR(255) NOT NULL,
-  creator         VARCHAR(255),
-  category        VARCHAR(64),              -- ADD-ON | TEXTURE PACK | SKIN PACK | WORLD | MASHUP PACK | TEMPLATE | APPLICATION
-  version         VARCHAR(32),
-  thumbnail_url   VARCHAR(512),
-  marketplace_url VARCHAR(512),
-  file_url        VARCHAR(512) NOT NULL,    -- GitHub Releases direct URL (primary)
-  file_name       VARCHAR(255),
-  file_size       BIGINT,                   -- bytes, for display
-  file_ext        VARCHAR(16),              -- mcaddon | mcpack | mcworld | ...
-  message_link    VARCHAR(512),             -- t.me channel post (optional)
-  updated_at      INT NOT NULL,             -- unix timestamp
-  INDEX idx_category (category),
-  INDEX idx_title (title)
-);
-```
-
-- Catalog-only: no binaries in MySQL. 50 MB cap is plenty for thousands of rows.
-- `file_url` is the single source of truth for direct download.
-
-### 6.2 Pages (v1)
-
-| Page | File | Purpose |
-|---|---|---|
-| Home / Browse | `index.php` | Category chips + latest add-ons grid, search box |
-| Search | `search.php?q=` | Title/creator search (MySQL `LIKE`, prepared statements) |
-| Detail | `addon.php?uuid=` | Thumbnail, title, creator, category, version, size, description, **Download** + **Download via Telegram** |
-| Download | `download.php?uuid=` | 302 redirect to `file_url` (counts as the one primary action) |
-| Sync (admin) | `sync.php` | `POST` JSON array → upsert into `addons`. Token-protected. Used by manual import now, bot webhook later. |
-
-### 6.3 Bot ↔ Website integration
-
-- **Website → Bot (v1, no bot change):** Deep link `https://t.me/Mc_addonbot?start=<uuid>` — already implemented in `lib/start.js` (`parseStartPayload` + file lookup by UUID).
-- **Bot → Website (v1, manual):** Export catalog as JSON from the bot DB, `POST` to `sync.php` with a shared secret token. No shared DB, no cron.
-- **Bot → Website (v2, later):** Bot calls `sync.php` automatically after each upload in `handle_media.js`. Same endpoint, same token.
-
-### 6.4 Security (non-negotiable)
-
-- All queries via PDO prepared statements. No string-concatenated SQL.
-- `sync.php` requires `X-Sync-Token` header matching a secret in `config.php` (never committed).
-- `config.php` (DB creds + token) is `.gitignore`d and never uploaded to the repo.
-- Escape all output with `htmlspecialchars(..., ENT_QUOTES, 'UTF-8')`.
-- No user accounts in v1 → no password storage, no session risk.
-
-## 7. Vertical slices
-
-### Slice 1 — MVP: Download-only catalog (this is v1)
-- [ ] `DESIGN.md` tokens + `AGENTS.md` conventions (done in this plan)
-- [ ] MySQL `addons` table + seed with 10–20 real add-ons (GitHub Releases URLs)
-- [ ] `index.php` (browse + category filter), `search.php`, `addon.php`, `download.php`
-- [ ] Responsive layout at 375 / 768 / 1024 / 1440px, no horizontal scroll
-- [ ] Deploy to InfinityFree subdomain, free SSL in VistaPanel
-- [ ] **Done when:** a visitor can browse, search, open a detail page, and download a `.mcaddon` directly in the browser, with a working "via Telegram" fallback.
-
-### Slice 2 — Catalog sync (bot → website)
-- [ ] `sync.php` token-protected JSON import
-- [ ] One-click export from bot (manual JSON now; auto-POST from `handle_media.js` later)
-- [ ] **Done when:** uploading a file in the bot appears on the website without hand-editing MySQL.
-
-### Slice 3 — Polish (only after Slice 1 succeeds)
-- [ ] Thumbnails, version badges, "How to install" steps per file type
-- [ ] SEO meta + sitemap, download counter
-- [ ] Request form / admin upload (per your "once we succeed" note)
-
-## 8. Risks & mitigations
-
-| Risk | Impact | Mitigation |
-|---|---|---|
-| InfinityFree 10 MB/file limit | Large `.mcaddon` can't live in `htdocs` | GitHub Releases as primary store; `htdocs` for thumbnails only |
-| InfinityFree 50 MB MySQL cap | Catalog overflow | Catalog-only table (no binaries); paginate + `LIMIT` |
-| InfinityFree 50k hits/day + suspension if idle | Site pauses | Keep pages light (no framework, no images >200 KB); drive traffic via Telegram channel posts |
-| No cron on InfinityFree | No auto-sync | Manual JSON import in v1; bot-side POST in v2 (bot has its own runtime) |
-| GitHub Releases ToS | Files are public, no private access | Fine for public add-ons; don't upload anything private |
-| Copyright (Marketplace content) | Takedown risk | Link to Marketplace URL on every detail page; keep `marketplace_url` populated |
-
-## 9. What we explicitly skip in v1 (YAGNI)
-
-- User accounts / Telegram Login (add only if needed)
-- Website-side file upload (bot already handles uploads)
-- Request-a-pack form (Slice 3)
-- Comments, ratings, ads, link shorteners
-- Node / React / WordPress (InfinityFree can't run Node; WP would eat the 50 MB DB cap)
-
-## 10. Next steps
-
-1. **Step 1 (you):** Cloudflare R2 bucket `mc-addons` → send me the `https://pub-....r2.dev` URL.
-2. **Step 2 (you):** InfinityFree account + free subdomain → send me the subdomain.
-3. **Steps 3–5 (me → you paste):** I build MySQL notebook + HTML/CSS pages + PHP brain.
-4. **Step 6:** You upload first 5 files to R2, I add them to the notebook.
-5. **Steps 7–8:** Telegram fallback button + free SSL → live.
-
----
-
-## 11. Hard limits & safety (user-requested 2026-11-27)
-
-### 11.1 Hard core limit at 9.4 GB — "never charge me"
-
-**Simple meaning:** Cloudflare has no "stop" button, so we build our own stop in code. Before any new file is added, we check: "Will total files go over 9.4 GB?" If yes → block with "Storage Full". 9.4 GB leaves 0.6 GB buffer below the 10 GB free tier for rounding (Cloudflare rounds up to the next GB-month) [1](https://developers.cloudflare.com/r2/pricing/index.md).
-
-**Why 9.4 GB:** 10 GB free tier is a billable allowance, not a hard stop — exceeding it generates charges instead of stopping [3](https://community.cloudflare.com/t/feature-request-hard-spending-usage-caps-for-the-age-of-ai-agents-context/974969). 9.4 GB is safely under, even with rounding.
-
-**How it works (both sides enforce):**
-
-| Side | Where | Check |
-|---|---|---|
-| **Website (PHP)** | `sync.php` + `lib/storage_guard.php` (new) | `SELECT SUM(file_size) FROM addons` → if `total + new_size > 9.4GB` → return HTTP 507 "Storage Full", do not insert |
-| **Bot (JS)** | `Mc_addonbot/lib/handle_media.js` + new `lib/storage_guard.js` | `SELECT SUM(file_size) FROM files` → same check before upload. If full → tell admin "Storage full, delete old add-on first" |
-| **Update case** | Both sides | If updating same UUID: `total - old_size + new_size > 9.4GB` → block. Deleting old first frees space (see §11.2) |
-
-**Constants (frozen):**
-```php
-// website/lib/storage_guard.php
-const STORAGE_LIMIT_BYTES = 10092649186; // 9.4 GiB = 9.4 * 1024^3
-// ponytail: 9.4 GiB leaves 0.6 GiB buffer for Cloudflare rounding; revisit if R2 free tier changes
-```
-
-```js
-// Mc_addonbot/lib/storage_guard.js
-export const STORAGE_LIMIT_BYTES = 10092649186;
-```
-
-**Fail-closed:** If the SUM query fails or returns null, block the upload (don't guess). Log the error for admin.
-
-**Tests (must pass before live):**
-- Total 9.3 GB + new 0.2 GB file → blocked (9.5 > 9.4)
-- Total 9.3 GB + update same UUID (old 0.5 GB → new 0.6 GB) → allowed (9.4 exactly)
-- Total 9.4 GB + delete 1 GB → next 0.5 GB upload allowed
-- SUM query fails → upload blocked, error logged
-
-**Also set (you, 1 min):** Cloudflare dashboard → Billing → Alerts → notify at $1. This is a safety net email, not a stop — the code above is the real stop.
-
-### 11.2 Delete old & upload new — "update replaces, doesn't duplicate"
-
-**Simple meaning:** When you upload v2 of the same add-on, we delete v1 first, then add v2. No duplicates, no wasted space. This also helps stay under 9.4 GB.
-
-**Identity:** Same **UUID** = same add-on. Your bot already uses UUID as the primary key in `files` table (`schema.js`). If UUID matches, it's an update.
-
-**R2 key structure (frozen):**
-```
-addons/<uuid>/<filename>
-e.g. addons/a1b2c3d4-.../CoolAddon_v2.mcaddon
-```
-Old and new versions have different filenames, so they don't collide. We delete the old key after the new one is safely uploaded.
-
-**Flow (safe order — never delete before upload succeeds):**
-
-```
-1. Admin uploads new file (bot or R2 dashboard)
-2. Check UUID exists? 
-   - No → normal insert (check 9.4 GB limit first)
-   - Yes → it's an update:
-     a. Upload NEW file to R2 (new key) — if this fails, STOP, old file untouched
-     b. Delete OLD file from R2 via DeleteObject API [1](https://developers.cloudflare.com/r2/objects/delete-objects/)
-        - Workers: `env.MY_BUCKET.delete(key)` [1](https://developers.cloudflare.com/r2/objects/delete-objects/)
-        - S3 API: `DeleteObjectCommand({Bucket, Key})` [1](https://developers.cloudflare.com/r2/objects/delete-objects/)
-     c. Update DB record (same UUID, new file_url, new version, new file_size)
-     d. Delete old Telegram channel message via existing `deleteMessageLink()` in `lib/delete.js` (optional, keeps channels clean)
-3. Done — total size = old total - old_size + new_size
-```
-
-**Where to implement:**
-- **Bot:** `Mc_addonbot/lib/handle_media.js` — add `replaceExisting(uuid, newFile)` helper. Reuse existing `deleteMessageLink()` from `lib/delete.js`.
-- **Website:** `website/sync.php` — on upsert, if `file_url` changed, call R2 DeleteObject for old key (via S3-compatible API from PHP, or via Workers binding if bot does it). Simpler for v1: bot deletes old R2 file, website just updates the notebook row. Website never deletes R2 directly in v1 (YAGNI).
-- **Manual (v1, you):** In R2 dashboard, delete old file → upload new → tell me new URL → I update notebook. Same result, no code needed for first 5 files.
-
-**Tests:**
-- Upload v1 (100 MB) → upload v2 same UUID (120 MB) → R2 has only v2, DB has v2, total = 120 MB (not 220 MB)
-- Upload v2 fails (bad file) → v1 still there, DB unchanged
-- Delete old R2 fails → DB not updated, error logged, admin notified
-
-### 11.3 Hide 100% bot token — "never show it to anyone"
-
-**Simple meaning:** Your bot token is like your house key. Anyone with it can control your bot. We never put it in the website, never in GitHub, never in browser code. Only the bot server and website server know it, and only in secret files.
-
-**Verified facts:**
-- "Never Expose Bot Token: The bot token is a secret—never include it in client-side code" [1](https://www.w3tutorials.net/blog/telegram-authorization-without-default-button/)
-- "Treat the token like a password and not hardcode it in source code" [2](https://botpassword.com/keys/telegram)
-- "Do not paste a real token into documentation, screenshots, chat messages, issue trackers, client-side JavaScript, or a public repository" [3](https://www.entergram.com/blog/telegram-access-token-api-id-hash-session-string)
-- "Never ship it to the browser, commit it, put it in an image, print the full Bot API URL, or include it in application logs" [4](https://playcode.io/blog/how-to-create-a-telegram-bot)
-
-**Your current bot is already safe:** `Mc_addonbot/lib/config.js` has **no token** — it uses `import { api } from 'sdk'`, so the token lives in your serverless platform's secrets, not in code. ✅ Keep it that way.
-
-**Rules for website (frozen):**
-
-| Rule | How |
-|---|---|
-| Token never in browser | Website HTML/JS only gets deep link `https://t.me/Mc_addonbot?start=<uuid>` — no token needed for that |
-| Token only in server secret | `website/config.php` on InfinityFree server only (never in GitHub, `.gitignore`d). If website needs to call Telegram API (e.g. verify join gate), it does so in PHP server-side, never outputs token |
-| Token never in logs | Never log full Bot API URL (it contains token). Log only `sendMessage` result, not URL |
-| Token never in GitHub | `.gitignore` must include `config.php`, `.env`, `*.key`. Commit `config.example.php` with placeholder `YOUR_TOKEN_HERE` only |
-| Token never in screenshots/chat | Don't paste token in chat, docs, or issues. If leaked → BotFather `/token` → new token → update both servers |
-| Block config access | `.htaccess` denies direct access to `config.php` and `lib/` folder |
-
-**Audit checklist (before live):**
-- [ ] `grep -r "bot.*token\|BOT_TOKEN\|123456:" Mc_addonbot/ website/` → no real token found
-- [ ] `config.php` not in GitHub (`git status` clean, `.gitignore` has it)
-- [ ] Opening `https://your-site/config.php` in browser → 403/404, not code
-- [ ] View-source on every page → no token string
-- [ ] Bot token stored only in: (1) serverless platform secrets, (2) InfinityFree `config.php` on server
-
-**If token ever leaks:** BotFather → `/token` → pick bot → copy new token → update serverless secrets + InfinityFree `config.php` → test bot. Old token stops working immediately.
-
----
-
-**Skipped / Unchecked:** Live InfinityFree deploy, real R2 bucket URL, bot DB export sample for `sync.php`, R2 API credentials for PHP-side delete (v1 uses bot-side delete only).
-**Residual Risk:** 9.4 GB guard relies on DB SUM accuracy — if R2 and DB drift (manual R2 uploads without DB update), guard may be off. Mitigation: always add files via bot or tell me the URL so DB stays in sync; periodic R2 dashboard check.
+**Status:** Website redesign and local sync input hardening built and tested; neither is deployed. Rate limiting, durable sync recovery, reconciliation, caching/search optimization and R2 remain future work.
+**Source research:** [UI/UX and motion](ui-research.md), [landing page](landing-page-research.md), [website engine](engine-research.md).
+**Supersedes:** The older plan in this file. Its GitHub Releases, direct-browser-download, manual-add-on entry and PHP/MySQL sync assumptions are obsolete; the old R2 guard proposal did not enforce a hard cap and must not be used as a design. Prior text remains available in Git history.
+
+## 1. Goal and definition of success
+
+Make the existing $0 Minecraft Bedrock catalog professional, expressive, accessible and resilient: a visitor can browse → search/filter → open a real listing → continue to `@Mc_addonbot` for delivery, with understandable help and recovery when something goes wrong.
+
+**Requested outcome:**
+- YouTube-video-feed-*inspired* landing page: **one large add-on per row on mobile, four per row on desktop**, without pretending the listings are videos or copying YouTube branding.
+- Material 3 Expressive-inspired shapes, hierarchy and subtle motion; flat solid colors only. No AI button, gradients, glow or background glow.
+- About and FAQ/help pages, plus useful 403, 404, 500, 502, 503, 504 and 505 experiences where the host can actually serve them.
+- Practical speed improvements, bot/abuse protection, reliable catalog sync and a safe $0 deployment process.
+
+**Not a success claim yet:** The first 20-item batch was imported and live browsing/search/detail were observed; full import and actual Telegram file delivery remain unverified. A detailed status and source of truth is in `handoff.md`.
+
+## 2. Non-negotiable boundaries
+
+- **Budget $0.** Do not enable paid products, move plans, require a paid domain or add billing without explicit owner approval. Free limits and features must be verified for the actual account.
+- Website files are in `telegram-catalog-bridge/website/`, not the older root `website/`. InfinityFree hosts the PHP shell; browsers read the public Worker/D1 catalog. Keep the existing browser-fetch/CORS design: InfinityFree blocks server-side `workers.dev` access.
+- Telegram currently delivers files. Preserve `https://t.me/Mc_addonbot?start=<uuid>` and existing bot behavior. Website must not display a fake direct download, claim delivery is verified or imply that R2 already exists.
+- Bot token and sync secret never appear in browser code, logs, repository or upload ZIP. Existing server-side private `config.php`, live Worker secret and D1 binding must be preserved. Do not ask for credentials in chat.
+- User asked us to ignore the 12 pending BotFather database changes. No Telegram DB migration or schema application. No bot rewrite. Any bot-side change requires separate review, tests and coordination with the live revision-68 bot.
+- No user login, public upload, request form, comments, ratings, AI feature, admin panel, invented statistics, official affiliation, support channel or guaranteed compatibility.
+- Do not manually add individual add-ons: import/sync existing records in owner-triggered batches and later improve automation safely.
+- R2 and a real 9.4 GB guard are deferred. Do not claim free-tier storage, uploads, replacements or a $0 hard spending cap is enforced.
+
+## 3. Current architecture and contracts
+
+**Flow:** InfinityFree PHP/HTML/CSS → browser JavaScript → public Cloudflare Worker → D1 catalog. The bot sends public metadata to the Worker's authenticated `/sync` route. Downloads continue in Telegram.
+
+**Existing files:**
+- Site templates: `telegram-catalog-bridge/website/index.php`, `search.php`, `addon.php`, `lib/view.php`, `.htaccess`.
+- Styling/client rendering: `assets/style.css`, `assets/catalog.js`.
+- Catalog API: `telegram-catalog-bridge/cloudflare/worker.js`, D1 `schema.sql`; bot bridge under `telegram-catalog-bridge/bot/`.
+- Tests: `telegram-catalog-bridge/tests/worker.test.mjs`, `bot.test.mjs`; add browser/client tests where useful.
+- Delivery: `telegram-catalog-bridge/website-upload.zip`, containing site contents but **no actual `config.php`**, bot code, Worker secret, SQL or other private files.
+
+**Compatibility contract:** Preserve existing query URLs (`index.php?cat=...&page=...`, `search.php?q=...`, `addon.php?uuid=...`), exact supported category identifiers, public API routes/JSON shape, current bot UUID deep links, existing security restrictions in `.htaccess` and correct CORS. A refactor must include regression tests for these contracts. Existing page size is 24; preserve unless deliberately changed and both sides/tests are updated.
+
+**Documentation conflict:** `AGENTS.md` and portions of `DESIGN.md` describe an older GitHub Releases/MySQL/direct-download design and auto-sized grids. In the documentation portion of implementation, update them to match this roadmap, without changing the standing no-glow preference. Do not let obsolete instructions override the architecture above.
+
+## 4. Release strategy: small vertical slices
+
+Each slice gets a focused diff, relevant tests and review before the next. Site changes can be built locally even while end-to-end Telegram testing is pending, but do not claim the product flow is complete until the live test is done. Worker/bot changes are separate deployments with independent rollback; don't bundle them into a cosmetic release unnecessarily.
+
+### Slice 0 — Baseline, test fixture and release safety
+
+- [ ] Record baseline behavior and current Git status; preserve existing files/ZIP and private configuration. Establish local mock catalog data containing real-shaped records, including missing thumbnail/creator/version and a 120-character title.
+- [ ] Re-run existing Worker/bot tests and PHP/JS syntax checks. Record actual outputs, not assumed passes. Identify an available real browser for responsive and accessibility testing; if unavailable, mark browser checks unverified.
+- [ ] Reconfirm the live site's browse → search → item → Telegram link, preferably without disruptive testing. When the owner is ready, test actual file receipt and finish `/websync` with the bot-provided cursor. Do not claim completion until the bot says Finished.
+- [ ] Confirm separate deploy/rollback for website and Worker, and preserve production `CATALOG` binding, secret and CORS. No destructive live test or migration.
+
+**Done when:** Baseline and blockers are recorded; no existing behavior is knowingly broken. Live Telegram delivery and complete backfill are either observed or explicitly marked pending.
+
+### Slice 1 — Design system and responsive landing page
+
+- [ ] Update `DESIGN.md`/`AGENTS.md` to current product scope, responsive contract and correct deployed directory; keep flat solid green/dark design, system fonts and no glow.
+- [ ] Build a compact header with visible labeled search, Browse/Help navigation and skip link. Ensure navigation works without a JavaScript-only menu.
+- [ ] Reduce decorative hero height; present a concise Bedrock introduction and explain that downloads continue in Telegram. Make the actual catalog visible early.
+- [ ] Implement a consistent image-first feed: actual thumbnail (landscape 16:9 initial proposal), title, creator/category if available, one understandable link to detail. No fake play icon, duration, view count, popularity or featured claims. Broken/missing images use the same-size neutral fallback; test crop vs contain with real images.
+- [ ] Responsive grid based on available CSS viewport: **<600 px = 1 column; 600–899 = 2; 900–1023 = 3; ≥1024 = 4**, capped at four even on wide screens. At zoom/split-screen use the available width, not device type. Test breakpoint boundaries and long titles; avoid horizontal overflow.
+- [ ] Retain supported category links, search, count only where meaningful, 24-item pagination and working back navigation; do not imply imported catalog is complete. Keep state in URLs.
+- [ ] Use restrained nonessential press/hover feedback, visible keyboard focus and no animation needed to understand content. Respect `prefers-reduced-motion` and keep scroll/FAQ instantaneous where requested.
+
+**Done when:** At 320–599 px one card occupies each row; at ≥1024 px four fit without clipping; search/filter/pagination still reach correct records. Usability, focus and reduced-motion checks pass where test tooling is available.
+
+### Slice 2 — Search, detail and resilient client states
+
+- [ ] Apply the new card system to search results. Preserve the query and provide meaningful empty, loading, API error and 429 states with safe Retry. Never confuse a failed request with no matches.
+- [ ] Keep existing search behavior and make its current first-24-results limitation clear until actual pagination is added and tested. No invented result counts.
+- [ ] Detail page displays only real available data, safe HTTPS image/Marketplace links, and an obvious **Open in Telegram** action with honest installation/help text. No promise that every item is compatible or delivered.
+- [ ] Separate invalid UUID, Worker 404 for confirmed missing item, 429, timeout and Worker outage. Add a browser fetch timeout and manual retry without a retry loop. Do not leak secrets or render raw metadata as HTML.
+- [ ] Provide a JS-disabled explanation; static page shell and informational links must remain available. Browser-side catalog requires JS under the present architecture.
+- [ ] Handle the dynamic-detail soft-404 problem deliberately: PHP cannot change its original status after the browser's API fetch. Decide between a server-backed 404 route/redirect or `noindex` on a confirmed client-side missing item, document tradeoffs, and never treat network error as confirmed missing. Validate crawler behavior where available.
+
+**Done when:** Users can identify what happened and recover; verified valid detail links still open Telegram; confirmed-missing vs outage are distinct. Search, XSS-safe text, unsafe URL rejection and navigation have regression tests.
+
+### Slice 3 — About, FAQ and error documents
+
+- [ ] Add simple About and Help/FAQ pages using existing site shell. Explain catalog purpose, Bedrock compatibility limits, Telegram steps, import basics, missing listings and troubleshooting. Use semantic native disclosures and no invented support contact, legal policy, creator attribution or guarantees.
+- [ ] Provide static, lightweight error documents for **403, 404, 500, 502, 503, 504, 505** with accurate plain-language text and Home/Help recovery. 505 means HTTP Version Not Supported, not generic 500.
+- [ ] Configure local-path Apache `ErrorDocument` directives only where supported; preserve all existing access controls. A nonexistent path should actually return 404. Avoid external error redirects that turn the response into 302/200. Test local HTML accessibility even if PHP is unavailable.
+- [ ] Test actual headers and response bodies on an isolated staging deployment/host-approved path. Record limitations: InfinityFree security, upstream proxy/502/504 and protocol-level 505 can bypass site documents; a broken `.htaccess` can prevent custom 500 rendering. Do not simulate all statuses as 200 and claim success.
+
+**Done when:** About and FAQ work on mobile and keyboard, and supported error responses return their original statuses. Any host-controlled exceptions are explicitly documented, not promised.
+
+### Slice 4 — Image performance, caching and search efficiency
+
+- [ ] On first render, do not lazy-load the likely above-the-fold/LCP image; lazy-load appropriate off-screen images. Set dimensions/aspect ratio and implement error fallback. Avoid prioritizing every image, heavy libraries or stretching art.
+- [ ] Benchmark realistic mobile performance before/after. Browser-to-Worker fetch delays thumbnail discovery; changing lazy loading doesn't remove that waterfall. Observe LCP, layout shifts and interaction responsiveness where possible; goals are not guarantees.
+- [ ] Ensure CSS/JS caching uses safe versioning/revalidation and test InfinityFree headers. Consider a short 30–60s TTL only for **successful public GET** catalog responses after measuring and validating workers.dev capabilities. Keep `/sync` and auth failures uncached; define cache keys for query/category/page and prevent one user's query from leaking into another response.
+- [ ] Document temporary staleness of updates/deletes; do not claim immediate global purge. A per-data-center Cache API deletion is not global. If invalidation cannot meet removal requirements, use a short TTL or keep `no-store`.
+- [ ] Measure D1 rows read and `EXPLAIN QUERY PLAN`, including leading-wildcard title/creator search, `COUNT(*)` and large offsets. Only then choose bounded pages, indexes, prefix/FTS or cursor pagination; test any changed search semantics and avoid schema changes without a separate D1 plan.
+
+**Done when:** Before/after measurements or explicit tooling gaps are documented; first visible images and fallbacks work; cache/search correctness and stale-content behavior are verified.
+
+### Slice 5 — Layered abuse and sync protection
+
+- [ ] Confirm availability of Workers Rate Limiting bindings in the real free account and preserve all existing bindings during deployment. Scope a generous measured rate limit to public read endpoints; use trustworthy client information, return clear 429/retry behavior and test shared-network false positives.
+- [ ] Treat rate limiting as approximate/per-location, not a hard global cap or protection against all scraping. Check actual `workers.dev` eligibility before suggesting zone WAF features; do not purchase a domain.
+- [ ] Keep `/sync` protected with its existing server-to-server secret and not subject to a human challenge. Harden input, request methods/content type and **streamed byte-size limit**, including missing/misleading Content-Length and multibyte payloads. If adding an unauthorized-request limit, ensure legitimate 20-item imports and bot retries cannot be blocked.
+- [ ] Add tests for malformed, oversized and unauthenticated payloads, rate limits and preserved valid sync. Keep response errors generic and logs secret-free.
+- [ ] **No blanket CAPTCHA.** If a public form is explicitly approved in the future, assess Turnstile for that action only, with server-side Siteverify and an accessible failure path; test hosting connectivity first.
+
+**Done when:** Local tests prove valid sync survives and invalid requests are bounded; isolated deployment confirms browsing/CORS and sync still work. Never claim complete bot prevention.
+
+### Slice 6 — Catalog reliability and monitoring
+
+- [ ] Design a durable retry mechanism compatible with the actual Telegram Serverless runtime and quota, with bounded exponential backoff and idempotency; do not call an in-memory queue durable. Review this separately before changing live bot modules.
+- [ ] Design deterministic update/delete ordering to fix same-second ambiguity using a reliable version/event identity; preserve tombstones and test out-of-order events, retries and conflict handling.
+- [ ] Design safe deletion reconciliation only after a verified authoritative **complete** snapshot or deletion log; an interrupted/partial batch must never delete valid records. Ordinary `/websync` does not currently reconcile deleted items.
+- [ ] Add minimal, secret-free operational visibility for aggregate errors, Worker/D1 usage, sync failures and stale data. `/health` only proves Worker reachability, not D1 integrity or Telegram delivery.
+- [ ] Test backups and recovery on isolated data; document manual repair and rollback. No production deletion test without a disposable record and permission.
+
+**Done when:** Failure/retry/update/delete cases are tested in isolation, and any unresolved runtime or schema constraint is documented. Do not apply pending Telegram DB migrations.
+
+### Slice 7 — Final verification, packaging and owner-led release
+
+- [ ] Run existing Worker/bot tests, new UI/client tests, PHP syntax checks, JS syntax checks and archive inspection. Capture exact results. Test malformed data, long titles, empty results, invalid links and no-JS handling.
+- [ ] Browser checks at 320, 375, 600, 768, 900, 1024, 1280 and 1440 CSS px, including breakpoint edges; keyboard, focus not obscured, reduced motion, 200–400% zoom/reflow, screen-reader checks where available. Automated checks do not prove WCAG compliance.
+- [ ] Confirm actual status codes for supported error pages; confirm cache headers and live browser CORS. Do not force a production 500 or perform a live load test without a safe plan.
+- [ ] Rebuild `telegram-catalog-bridge/website-upload.zip`, test archive integrity/content, and exclude real `config.php`, private bot library, `.env`, Worker secrets and database files. Include `.htaccess`.
+- [ ] Update `handoff.md`, README/AGENTS/DESIGN for the deployed reality and report **Skipped / Unchecked** and **Residual Risk**. Only commit/push to the current Arena branch if appropriate and never expose secrets.
+- [ ] Give the owner simple, explicit InfinityFree upload/replacement steps. Preserve existing `config.php`; confirm upload before checking live page, search, detail, response status and Telegram delivery. Deployment is not complete until separately verified. Worker changes require a separate safe deployment preserving secret/D1/CORS and owner coordination.
+
+**Done when:** Packaging and local tests pass, the owner completes deployment, live checks pass, and all unverified host/device/error cases are honestly recorded. No automatic paid-plan or R2 setup.
+
+## 5. Future R2 phase — separate approval and design
+
+R2 is not active and Telegram is the current file delivery path. When the owner is ready, re-check actual pricing/units, card requirements and account-wide usage before any activation. The old unused constant is **10,092,649,186 bytes ≈ 9.4 GiB ≈ 10.093 decimal GB**, not 9.4 decimal GB. Decide an explicit conservative byte cap (user target: never exceed 9.4 GB) after confirming provider units.
+
+A credible fail-closed storage design must account for concurrent atomic reservations, in-flight/multipart uploads, orphan cleanup, replacement overlap, existing provider usage, partial failures, reconciliation and a single controlled write path. Protect the old file until a replacement is verified, but count simultaneous storage against the limit. Storage controls alone do not cap operations or guarantee a $0 bill. If a reliable absolute guarantee is not possible with available services, say so rather than claim one. Do not implement direct downloads, billing, R2 or a fake guard as part of the UI slices.
+
+## 6. Acceptance and owner decisions
+
+**Acceptance checklist**
+- [ ] One large item/row mobile, four/row desktop; solid expressive design with no glow/gradients.
+- [ ] Browsing, search, category, detail and correct Telegram deep link work; actual file delivery verified separately.
+- [ ] FAQ/About plus truthful error recovery and status behavior within hosting constraints.
+- [ ] Reduced motion, keyboard, reflow, clear focus and meaningful loading/empty/error states tested; no unsupported accessibility claim.
+- [ ] Performance improvements measured; rate-limit scope does not break real visitors or bot.
+- [ ] Sync reliability limitations and import status accurately stated; Worker credentials/bindings remain intact.
+- [ ] No paid service or R2 enabled; package excludes real secrets; rollback and user deployment instructions ready.
+
+**Decisions only when they become relevant:** exact solid palette/rounding and image crop choice; whether to enable an approximate rate-limit after eligibility testing; how to handle confirmed missing-item indexing; whether a safe durable queue can be built without Telegram schema changes; eventual R2 byte ceiling and provider account constraints. No decision is required to begin local UI work using the proposed defaults.
+
+## 7. Sources and research detail
+
+- [Material motion physics](https://m3.material.io/styles/motion/overview/how-it-works), [Material adaptive cards](https://m3.material.io/components/cards/guidelines)
+- [W3C WCAG 2.2](https://www.w3.org/TR/WCAG22/), [reflow](https://www.w3.org/WAI/WCAG21/Understanding/reflow.html)
+- [web.dev image loading](https://web.dev/learn/images/performance-issues), [Web Vitals](https://web.dev/articles/vitals)
+- [Apache ErrorDocument](https://httpd.apache.org/docs/current/en/mod/core.html), [Google JavaScript SEO](https://developers.google.com/search/docs/crawling-indexing/javascript/javascript-seo-basics)
+- [Workers rate limiting](https://developers.cloudflare.com/workers/runtime-apis/bindings/rate-limit/), [D1 indexes](https://developers.cloudflare.com/d1/best-practices/use-indexes/), [Workers pricing](https://developers.cloudflare.com/workers/platform/pricing/), [R2 pricing](https://developers.cloudflare.com/r2/pricing/)
+
+**Skipped / Unchecked (build):** Live deployment, production rate-limit eligibility, complete import, real Telegram delivery, host-generated HTTP errors, screen-reader audit and real-device performance measurements.
+**Residual risk:** Partial catalog import, unverified file delivery, stale listings on sync failure, external thumbnail and hosting availability, free-tier limits and no R2 hard budget enforcement.

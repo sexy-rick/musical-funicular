@@ -6,3 +6,13 @@
   Require all denied
 </FilesMatch>
 Options -Indexes
+
+# Local static error documents preserve the status when Apache serves them.
+# The hosting provider or an upstream proxy may override these responses.
+ErrorDocument 403 /errors/403.html
+ErrorDocument 404 /errors/404.html
+ErrorDocument 500 /errors/500.html
+ErrorDocument 502 /errors/502.html
+ErrorDocument 503 /errors/503.html
+ErrorDocument 504 /errors/504.html
+ErrorDocument 505 /errors/505.html

@@ -13,6 +13,24 @@ function authorised(req, secret) {
   for (let i = 0; i < secret.length; i++) difference |= supplied.charCodeAt(i) ^ secret.charCodeAt(i);
   return difference === 0;
 }
+// Enforce a byte limit while reading, even without a trustworthy Content-Length.
+async function readBounded(request, limit) {
+  if (!request.body) return { value: '' };
+  const reader = request.body.getReader(); const chunks = []; let size = 0;
+  try {
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      size += value.byteLength;
+      if (size > limit) { void reader.cancel().catch(() => {}); return { tooLarge: true }; }
+      chunks.push(value);
+    }
+  } finally { reader.releaseLock(); }
+  const bytes = new Uint8Array(size); let offset = 0;
+  for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
+  try { return { value: new TextDecoder('utf-8', { fatal: true }).decode(bytes) }; }
+  catch (_) { return { invalid: true }; }
+}
 function text(v, max) { return typeof v === 'string' ? v.trim().slice(0, max) : ''; }
 function https(v) {
   try { const u = new URL(v); return u.protocol === 'https:' && !u.username && !u.password ? u.href.slice(0, 512) : ''; } catch { return ''; }
@@ -42,10 +60,12 @@ export default {
       }
       if (url.pathname === '/sync' && request.method === 'POST') {
         if (!authorised(request, env.SYNC_SECRET)) return response({error: 'Unauthorized'}, 401);
+        if (!/^application\/json(?:\s*;|\s*$)/i.test(request.headers.get('content-type') || '')) return response({error: 'Expected JSON'}, 415);
         if (Number(request.headers.get('content-length') || 0) > 32768) return response({error: 'Too large'}, 413);
-        const raw = await request.text();
-        if (raw.length > 32768) return response({error: 'Too large'}, 413);
-        let body; try { body = JSON.parse(raw); } catch { return response({error: 'Invalid JSON'}, 400); }
+        const raw = await readBounded(request, 32768);
+        if (raw.tooLarge) return response({error: 'Too large'}, 413);
+        if (raw.invalid) return response({error: 'Invalid JSON'}, 400);
+        let body; try { body = JSON.parse(raw.value); } catch { return response({error: 'Invalid JSON'}, 400); }
         if (!body || !ID.test(body.uuid || '') || !['upsert', 'delete'].includes(body.action)) return response({error: 'Invalid input'}, 400);
         const id = body.uuid.toLowerCase();
         const updated = Number(body.updated_at);

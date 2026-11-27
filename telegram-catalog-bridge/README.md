@@ -1,6 +1,6 @@
 # Automatic catalog connection: setup guide
 
-**Status: prepared for testing, not yet deployed or verified on BotFather/Cloudflare/InfinityFree.** Read this guide before installing. This is an alternative to the old MySQL catalog: it uses a Cloudflare Worker and D1 for public catalog metadata. Your current `config.php` and MySQL database stay untouched.
+**Status:** The browser-fetch website and Worker are live; 20 listings, search and a detail link were observed. Full backfill and real Telegram file delivery remain unverified. A redesigned website ZIP and local Worker input-hardening changes have been prepared but are not deployed until separately confirmed. This is an alternative to the old MySQL catalog: it uses a Cloudflare Worker and D1 for public catalog metadata. Existing private `config.php` and MySQL stay untouched.
 
 ## What this does
 
