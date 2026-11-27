@@ -7,7 +7,7 @@ A mobile-first Minecraft Bedrock catalog. Primary journey: browse/search → ite
 ## Foundation
 
 - System font stack; body approximately 16px; readable headings and metadata. One meaningful H1 per page.
-- Solid deep green-gray surfaces, pale green emphasis, clear contrast, generous spacing, and local/system assets. Never fabricate popularity, reviews, claims, ratings, video durations or compatibility.
+- Solid warm neutral surfaces with #c88828 accents, clear contrast, generous spacing, and local/system assets. Never fabricate popularity, reviews, claims, ratings, video durations or compatibility.
 - Search is visible, labeled and keyboard-operable. Keep Browse and Help easy to find on phones; navigation must not rely on a JavaScript-only menu.
 - Cards use real thumbnails where available, consistent landscape framing, an accessible fallback, real item name and available creator/category. Whole card is a single link; long titles wrap safely.
 - Available width under 600 CSS px: 1 column; 600–899: 2; 900–1023: 3; 1024 and above: 4. Use available viewport, so zoom/split-screen can lower column count.
@@ -30,3 +30,10 @@ A mobile-first Minecraft Bedrock catalog. Primary journey: browse/search → ite
 
 - Browse-card Download opens `/addon.php?uuid=…`; the item page retains the Telegram UUID download. Share uses the device's native chooser directly when supported, with a copy fallback when it is not. It attempts to attach the same `thumbnail_url` used on the catalog card: eligible visible thumbnails are prepared in memory with CORS, supported format, streaming size limits and a short timeout. If still preparing, a second tap is needed to preserve browser user activation. Cross-origin hosts, browsers and receiving apps can prevent attachments; never promise an image was sent.
 - Search suggestions are actual matching catalog titles and creators, not Google or YouTube queries. A minimum of two characters and 500 ms pause precede a request; obsolete requests are aborted and stale responses ignored. The search form remains usable without suggestions or JavaScript.
+
+
+## v8 branding and search
+
+- Display the owner-supplied Marketplace Trader logo and favicon set. Accent surfaces use #c88828 with dark text; readable dark/light theme text uses a contrasting companion color. The artwork is the supplied logo rather than a generated replacement.
+- Desktop hero category shortcuts and detail discovery links make use of available space without fabricated content. Responsive grid thresholds remain unchanged.
+- Search pages begin the existing Worker request in the document head and consume that same request once; there is no persistent metadata cache. Suggestions still wait 500 ms after typing. Performance depends on hosting, browser, network and Worker response time.

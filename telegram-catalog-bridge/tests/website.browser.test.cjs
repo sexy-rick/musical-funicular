@@ -14,7 +14,7 @@ const item={uuid:id,title:'A very long add-on name '.repeat(5),creator:'Maker',c
 // Simulate a returning visitor whose browser holds the old, unversioned assets.
 const oldCss=execFileSync('git',['show','e4d3499:telegram-catalog-bridge/website/assets/style.css']);
 const oldJs=execFileSync('git',['show','e4d3499:telegram-catalog-bridge/website/assets/catalog.js']);
-const server=http.createServer((req,res)=>{const path=new URL(req.url,'http://localhost').pathname; if(html[path] || prettyRoute.test(path)){res.setHeader('Content-Type','text/html');res.end(html[path] || html['/addon.php']);return;} if(path==='/assets/style.css'||path==='/assets/catalog.js'){res.setHeader('Content-Type',path.endsWith('.css')?'text/css':'application/javascript');res.end(path.endsWith('.css')?oldCss:oldJs);return;} if(['/assets/site-v7.css','/assets/catalog-v7.js','/assets/search-v7.js','/assets/theme-v6.js','/assets/icons-v6.svg'].includes(path)){res.setHeader('Content-Type',path.endsWith('.css')?'text/css':path.endsWith('.svg')?'image/svg+xml':'application/javascript');res.end(readFileSync(join(root,path)));return;}res.statusCode=404;res.end();});
+const server=http.createServer((req,res)=>{const path=new URL(req.url,'http://localhost').pathname; if(html[path] || prettyRoute.test(path)){res.setHeader('Content-Type','text/html');res.end(html[path] || html['/addon.php']);return;} if(path==='/assets/style.css'||path==='/assets/catalog.js'){res.setHeader('Content-Type',path.endsWith('.css')?'text/css':'application/javascript');res.end(path.endsWith('.css')?oldCss:oldJs);return;} if(['/assets/site-v8.css','/assets/catalog-v8.js','/assets/search-v7.js','/assets/theme-v8.js','/assets/icons-v6.svg','/assets/brand-logo-v8.jpg'].includes(path)){res.setHeader('Content-Type',path.endsWith('.css')?'text/css':path.endsWith('.svg')?'image/svg+xml':path.endsWith('.jpg')?'image/jpeg':'application/javascript');res.end(readFileSync(join(root,path)));return;}res.statusCode=404;res.end();});
 (async()=>{
  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
  const browser=await chromium.launch({executablePath:await chrome.executablePath(),args:chrome.args.filter(arg=>arg!=='--disable-web-security'),headless:true});
@@ -45,10 +45,18 @@ const server=http.createServer((req,res)=>{const path=new URL(req.url,'http://lo
   await page.locator('.back').click(); await page.waitForSelector('.card');
   assert.match(page.url(),/cat=ADD-ON&page=2#catalog/);
   console.log('Explicit return list requests:',listRequests,'(BFCache availability depends on browser)');
-  await page.goto(`${base}/search.php?q=chair`); await page.waitForSelector('.card'); await page.locator('.card-link').first().click(); await page.waitForSelector('.detail');
+  const beforeSearch=listRequests; await page.goto(`${base}/search.php?q=chair`); await page.waitForSelector('.card'); assert.equal(listRequests-beforeSearch,1,'early search uses a single request'); await page.locator('.card-link').first().click(); await page.waitForSelector('.detail');
   assert.match(await page.locator('.back').getAttribute('href'),/search.php\?q=chair/); await page.locator('.back').click(); await page.waitForSelector('.card'); assert.match(page.url(),/search.php\?q=chair/);
+  // Delay the client script: early search must finish while that script is still loading.
+  const ordering=[]; const record=response=>{if(response.url().includes('workers.dev/addons?q=early')) ordering.push('search'); if(response.url().endsWith('/assets/catalog-v8.js')) ordering.push('script');}; page.on('response',record);
+  await page.route('**/assets/catalog-v8.js',async route=>{await new Promise(resolve=>setTimeout(resolve,600)); await route.fulfill({path:join(root,'assets/catalog-v8.js'),contentType:'application/javascript'});});
+  await page.goto(`${base}/search.php?q=early`); await page.waitForSelector('.card'); assert.ok(ordering.indexOf('search')>=0 && ordering.indexOf('search')<ordering.indexOf('script'), 'search starts while the client script loads');
+  await page.unroute('**/assets/catalog-v8.js'); page.off('response',record);
   await page.goto(`${base}/addon.php?uuid=${id}`); await page.waitForSelector('.detail'); assert.equal(await page.locator('.back').getAttribute('href'),'/index.php#catalog');
   assert.equal((await page.goto(`${base}/home?i=1`)).status(),200); await page.waitForSelector('.card');
+  assert.equal(await page.locator('.brand img').getAttribute('src'),'/assets/brand-logo-v8.jpg'); assert.equal(await page.locator('link[rel="manifest"]').count(),1);
+  await page.setViewportSize({width:1440,height:800}); assert.equal(await page.locator('.hero-explore').isVisible(),true); assert.equal(await page.evaluate(()=>getComputedStyle(document.documentElement).getPropertyValue('--primary').trim()),'#c88828'); await page.setViewportSize({width:375,height:800});
+
   await page.evaluate(()=>{Object.defineProperty(navigator,'share',{value:undefined,configurable:true});});
   await page.locator('.card .share-button').first().click();
   const sharedUrl=await page.locator('.card .share-url').first().inputValue();
