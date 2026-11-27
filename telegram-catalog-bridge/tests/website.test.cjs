@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const { readFileSync } = require('node:fs');
 const { join } = require('node:path');
 const { JSDOM } = require('jsdom');
-const script = readFileSync(join(__dirname, '../website/assets/catalog.js'), 'utf8');
+const script = readFileSync(join(__dirname, '../website/assets/catalog-v2.js'), 'utf8');
 const id='99eaa0fe-792a-4038-b588-e9ac2f02ce32';
 const item={uuid:id,title:'<img src=x onerror=evil()>',creator:'Maker',category:'ADD-ON',file_size:2048,thumbnail_url:'https://example.com/image.jpg'};
 async function page(target, query, response) {
@@ -22,7 +22,7 @@ const ok = data => ({ok:true,status:200,json:async()=>data});
   assert.equal(doc.querySelector('.card img').loading,'eager');
   assert.match(doc.querySelector('.pagination a').href,/cat=ADD-ON/);
   doc.querySelector('.card img').dispatchEvent(new home.window.Event('error'));
-  assert.ok(doc.querySelector('.card-image .block-icon'));
+  assert.ok(doc.querySelector('.card-image .image-fallback'));
   const search=await page('search-results','search.php?q=chair',ok({ok:true,total:25,items:[item]}));
   assert.match(search.window.document.querySelector('.search-note').textContent,/first 24/);
   const detail=await page('addon-results','addon.php?uuid='+id,ok({ok:true,item:{...item,marketplace_url:'javascript:alert(1)'}}));

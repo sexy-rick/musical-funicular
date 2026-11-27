@@ -1,5 +1,11 @@
 # Handoff — Marketplace Trader
 
+## Mobile correction milestone (2026-11-27)
+
+- User uploaded the earlier redesign but screenshots showed new markup paired with old two-column card styling, unstyled header/footer and unwanted decorative symbols. Independent fresh live fetch returned new CSS/JS and 23 catalog listings; the exact state of the phone/browser cache and upload timing is unknown. Live FAQ also rendered. Full import and Telegram delivery remain unverified.
+- Reproduced locally by serving new markup with old CSS/JS from `e4d3499`: 320px rendered two columns with overflow. Corrected with physically versioned `assets/site-v2.css` and `assets/catalog-v2.js`, PHP HTML cache revalidation, simplified header/hero and plain-text controls without decorative symbols. All future asset changes must use new names and update templates/error documents.
+- See `tasks/bug-report.md` for focused evidence and `tasks/plan.md` for the corrective plan. Rebuilt `website-upload.zip`, verified integrity, versioned assets and exclusion of private `config.php`; upload it again while preserving existing config. The live site will not show this correction until the owner uploads it. Actual InfinityFree/phone verification and custom error response codes are still pending.
+
 ## Build milestone (2026-11-27)
 
 - Built a redesigned bridge site locally: 1-column mobile / 4-column desktop catalog, subtle reduced-motion-aware styling, About/FAQ, search/detail recovery, image fallback/lazy loading, and static 403/404/500/502/503/504/505 error documents. Existing public API and Telegram links preserved. Rebuilt `telegram-catalog-bridge/website-upload.zip`, checked archive integrity and excluded actual `config.php`.

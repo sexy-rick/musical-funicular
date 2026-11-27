@@ -21,9 +21,9 @@
     const retry = el('button','', 'Try again'); retry.type = 'button'; retry.addEventListener('click', run);
     wrap.append(el('strong','',title),el('p','',message),retry); target.replaceChildren(wrap); finish(target);
   }
-  function loading(target, message) { const box=el('div','loading'); const mark=el('span','loading-mark','✳'); mark.setAttribute('aria-hidden','true'); box.append(mark,el('p','',message)); target.setAttribute('aria-busy','true'); target.replaceChildren(box); }
+  function loading(target, message) { const box=el('div','loading'); box.append(el('p','',message)); target.setAttribute('aria-busy','true'); target.replaceChildren(box); }
   function image(node, item, eager = false) {
-    const fallback = () => { const icon=el('span','block-icon','▦'); icon.setAttribute('aria-hidden','true'); node.replaceChildren(icon); };
+    const fallback = () => { const label=el('span','image-fallback','Image unavailable'); label.setAttribute('aria-hidden','true'); node.replaceChildren(label); };
     const url=safeUrl(item.thumbnail_url); if (!url) { fallback(); return; }
     const img=el('img'); img.alt=''; img.width=640; img.height=360; img.loading=eager ? 'eager' : 'lazy'; img.addEventListener('error',fallback,{once:true}); img.src=url; node.append(img);
   }
@@ -33,7 +33,7 @@
     image(cover,item,index < visibleColumns);
     const body=el('div','card-body'); body.append(el('h3','',item.title));
     const meta=el('p','card-creator'); const creator=typeof item.creator === 'string' && item.creator.trim() ? item.creator : 'Creator not listed'; meta.append(document.createTextNode(creator));
-    if (typeof item.category === 'string' && item.category.trim()) { const dot=el('span','','·'); dot.setAttribute('aria-hidden','true'); meta.append(dot,document.createTextNode(item.category.toLowerCase())); }
+    if (typeof item.category === 'string' && item.category.trim()) meta.append(el('span','card-category',item.category.toLowerCase()));
     body.append(meta); anchor.append(cover,body); article.append(anchor); return article;
   }
   async function request(path) {
@@ -54,7 +54,7 @@
       const count=document.querySelector('.count'); if (count) count.textContent=Number(data.total)+' listed';
       if (!data.items.length) { target.replaceChildren(empty('Nothing here just yet','Try another category or check back soon.')); finish(target); return; }
       showGrid(target,data.items); const pages=Math.max(1,Math.ceil(Number(data.total)/24));
-      if (pages>1) { const nav=el('nav','pagination'); nav.setAttribute('aria-label','Catalog pages'); const href=p=>'index.php?'+new URLSearchParams({...(cat ? {cat} : {}),page:String(p)})+'#catalog'; if(page>1) nav.append(link('← Previous',href(page-1))); nav.append(el('span','',`Page ${page} of ${pages}`)); if(page<pages) nav.append(link('Next →',href(page+1))); target.append(nav); }
+      if (pages>1) { const nav=el('nav','pagination'); nav.setAttribute('aria-label','Catalog pages'); const href=p=>'index.php?'+new URLSearchParams({...(cat ? {cat} : {}),page:String(p)})+'#catalog'; if(page>1) nav.append(link('Previous',href(page-1))); nav.append(el('span','',`Page ${page} of ${pages}`)); if(page<pages) nav.append(link('Next',href(page+1))); target.append(nav); }
       finish(target);
     } catch (error) { const count=document.querySelector('.count'); if (count) count.textContent=''; fail(target,catalog,error.status); }
   }
@@ -73,9 +73,9 @@
       document.title=item.title+' | Marketplace Trader'; const detail=el('div','detail'); const cover=el('div','detail-image'); image(cover,item,true); const content=el('div','detail-content');
       content.append(el('span','eyebrow',item.category || 'ADD-ON'),el('h1','',item.title),el('p','detail-creator',item.creator ? 'By '+item.creator : 'Creator not listed'));
       const meta=el('div','metadata'); const size=bytes(item.file_size); if(size) meta.append(el('span','',size)); if(item.version) meta.append(el('span','','Version '+item.version)); if(item.file_ext) meta.append(el('span','',String(item.file_ext).toUpperCase())); if(meta.children.length) content.append(meta);
-      const actions=el('div','actions'); actions.append(link('Open in Telegram ↗','https://t.me/Mc_addonbot?start='+encodeURIComponent(item.uuid),'btn btn-primary')); content.append(actions,el('p','action-note','Continue in Telegram and follow the bot’s instructions to receive the file.'));
-      const market=safeUrl(item.marketplace_url); if(market) { const p=el('p'); const a=link('View on Marketplace ↗',market,'text-link'); a.target='_blank'; a.rel='noopener noreferrer'; p.append(a); content.append(p); }
-      const install=el('div','install'); install.append(el('h2','','How to get started')); const list=el('ol'); for(const step of ['Open the bot and follow its instructions.','Download the file in Telegram if it is available.','On supported devices, open a compatible pack with Minecraft and enable it in your world settings.']) list.append(el('li','',step)); install.append(list,link('Need help? Visit the FAQ →','faq.php','text-link')); content.append(install); detail.append(cover,content); target.replaceChildren(detail); finish(target);
+      const actions=el('div','actions'); actions.append(link('Open in Telegram','https://t.me/Mc_addonbot?start='+encodeURIComponent(item.uuid),'btn btn-primary')); content.append(actions,el('p','action-note','Continue in Telegram and follow the bot’s instructions to receive the file.'));
+      const market=safeUrl(item.marketplace_url); if(market) { const p=el('p'); const a=link('View on Marketplace',market,'text-link'); a.target='_blank'; a.rel='noopener noreferrer'; p.append(a); content.append(p); }
+      const install=el('div','install'); install.append(el('h2','','How to get started')); const list=el('ol'); for(const step of ['Open the bot and follow its instructions.','Download the file in Telegram if it is available.','On supported devices, open a compatible pack with Minecraft and enable it in your world settings.']) list.append(el('li','',step)); install.append(list,link('Need help? Visit the FAQ','faq.php','text-link')); content.append(install); detail.append(cover,content); target.replaceChildren(detail); finish(target);
     } catch(error) { if(error.status===404) missing(target); else fail(target,addon,error.status); }
   }
   catalog(); search(); addon();

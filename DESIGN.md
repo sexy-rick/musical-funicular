@@ -2,7 +2,7 @@
 
 ## Product and visual direction
 
-A mobile-first Minecraft Bedrock catalog. Primary journey: browse/search → item → open in Telegram. Use Material 3 Expressive as inspiration: bold typography, friendly rounded shapes, strong contrast and subtle feedback. Flat solid colors only: **no gradients, glow, background glow, purple/pink AI treatment or AI button**. Do not imitate YouTube branding or present add-ons as videos.
+A mobile-first Minecraft Bedrock catalog. Primary journey: browse/search → item → open in Telegram. Use Material 3 Expressive as inspiration: bold typography, friendly rounded shapes, strong contrast and subtle feedback. Flat solid colors only: **no gradients, glow, background glow, purple/pink AI treatment or AI button**. Do not use decorative emoji, star/AI-like glyphs or arrow characters in the UI. Do not imitate YouTube branding or present add-ons as videos.
 
 ## Foundation
 

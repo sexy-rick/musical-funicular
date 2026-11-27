@@ -5,6 +5,10 @@
 **Source research:** [UI/UX and motion](ui-research.md), [landing page](landing-page-research.md), [website engine](engine-research.md).
 **Supersedes:** The older plan in this file. Its GitHub Releases, direct-browser-download, manual-add-on entry and PHP/MySQL sync assumptions are obsolete; the old R2 guard proposal did not enforce a hard cap and must not be used as a design. Prior text remains available in Git history.
 
+## Mobile correction (2026-11-27)
+
+User reported two cards per mobile row, mixed/unstyled components and unwanted decorative symbols after uploading. Focused investigation: `tasks/bug-report.md`. Plan: reproduce stale old assets with current markup; release uniquely named CSS/JS and HTML revalidation; remove decorative symbols and arrows; re-test real Chromium mobile/desktop breakpoints with old asset URLs present; package and have owner upload without replacing private config. Verify the live site after upload. Use new asset filenames for each subsequent content change.
+
 ## 1. Goal and definition of success
 
 Make the existing $0 Minecraft Bedrock catalog professional, expressive, accessible and resilient: a visitor can browse → search/filter → open a real listing → continue to `@Mc_addonbot` for delivery, with understandable help and recovery when something goes wrong.

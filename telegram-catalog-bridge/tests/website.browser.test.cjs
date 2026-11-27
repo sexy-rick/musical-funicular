@@ -8,7 +8,10 @@ const render=file=>execFileSync('npx',['--yes','@php-wasm/cli',join(root,file)],
 const html={ '/index.php':render('index.php'), '/faq.php':render('faq.php'), '/addon.php':render('addon.php') };
 const id='99eaa0fe-792a-4038-b588-e9ac2f02ce32';
 const item={uuid:id,title:'A very long add-on name '.repeat(5),creator:'Maker',category:'ADD-ON',thumbnail_url:'https://example.com/image.jpg'};
-const server=http.createServer((req,res)=>{const path=new URL(req.url,'http://localhost').pathname; if(html[path]){res.setHeader('Content-Type','text/html');res.end(html[path]);return;} if(path==='/assets/style.css'||path==='/assets/catalog.js'){res.setHeader('Content-Type',path.endsWith('.css')?'text/css':'application/javascript');res.end(readFileSync(join(root,path)));return;}res.statusCode=404;res.end();});
+// Simulate a returning visitor whose browser holds the old, unversioned assets.
+const oldCss=execFileSync('git',['show','e4d3499:telegram-catalog-bridge/website/assets/style.css']);
+const oldJs=execFileSync('git',['show','e4d3499:telegram-catalog-bridge/website/assets/catalog.js']);
+const server=http.createServer((req,res)=>{const path=new URL(req.url,'http://localhost').pathname; if(html[path]){res.setHeader('Content-Type','text/html');res.end(html[path]);return;} if(path==='/assets/style.css'||path==='/assets/catalog.js'){res.setHeader('Content-Type',path.endsWith('.css')?'text/css':'application/javascript');res.end(path.endsWith('.css')?oldCss:oldJs);return;} if(path==='/assets/site-v2.css'||path==='/assets/catalog-v2.js'){res.setHeader('Content-Type',path.endsWith('.css')?'text/css':'application/javascript');res.end(readFileSync(join(root,path)));return;}res.statusCode=404;res.end();});
 (async()=>{
  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
  const browser=await chromium.launch({executablePath:await chrome.executablePath(),args:chrome.args,headless:true});
@@ -21,6 +24,9 @@ const server=http.createServer((req,res)=>{const path=new URL(req.url,'http://lo
    const result=await page.evaluate(()=>{const cards=[...document.querySelectorAll('.card')]; const firstTop=cards[0].getBoundingClientRect().top; return {columns:cards.filter(c=>Math.abs(c.getBoundingClientRect().top-firstTop)<1).length,overflow:document.documentElement.scrollWidth>innerWidth, reduced:getComputedStyle(document.querySelector('.card img')).transitionDuration,loads:cards.map(c=>c.querySelector('img').loading)};});
    if(result.overflow) console.log('Overflow elements:', await page.evaluate(()=>[...document.querySelectorAll('*')].filter(e=>e.getBoundingClientRect().right>innerWidth+1).map(e=>[e.tagName,e.className,Math.round(e.getBoundingClientRect().right)]).slice(0,20)));
    assert.equal(result.columns,cols,`columns at ${width}`); assert.equal(result.overflow,false,`horizontal overflow at ${width}`); assert.equal(result.reduced,'0s',`reduced motion at ${width}`); assert.ok(result.loads.slice(0,cols).every(x=>x==='eager')); assert.equal(result.loads[cols],'lazy');
+   assert.equal(await page.locator('.main-nav').evaluate(e=>getComputedStyle(e).display),'flex');
+   assert.ok(await page.locator('.footer-nav').evaluate(e=>parseFloat(getComputedStyle(e).gap)>0));
+   assert.doesNotMatch(await page.locator('body').innerText(),/[✦✳✺▦↗↘↓←→⌕]/);
    if(process.env.CATALOG_SCREENSHOTS && (width===375 || width===1440)) await page.screenshot({path:`/tmp/catalog-${width}.png`,fullPage:true});
    console.log(`${width}px: ${result.columns} columns, no overflow, reduced motion`);
   }
