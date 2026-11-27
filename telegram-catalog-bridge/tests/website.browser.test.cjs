@@ -11,7 +11,7 @@ const item={uuid:id,title:'A very long add-on name '.repeat(5),creator:'Maker',c
 // Simulate a returning visitor whose browser holds the old, unversioned assets.
 const oldCss=execFileSync('git',['show','e4d3499:telegram-catalog-bridge/website/assets/style.css']);
 const oldJs=execFileSync('git',['show','e4d3499:telegram-catalog-bridge/website/assets/catalog.js']);
-const server=http.createServer((req,res)=>{const path=new URL(req.url,'http://localhost').pathname; if(html[path]){res.setHeader('Content-Type','text/html');res.end(html[path]);return;} if(path==='/assets/style.css'||path==='/assets/catalog.js'){res.setHeader('Content-Type',path.endsWith('.css')?'text/css':'application/javascript');res.end(path.endsWith('.css')?oldCss:oldJs);return;} if(path==='/assets/site-v3.css'||path==='/assets/catalog-v3.js'){res.setHeader('Content-Type',path.endsWith('.css')?'text/css':'application/javascript');res.end(readFileSync(join(root,path)));return;}res.statusCode=404;res.end();});
+const server=http.createServer((req,res)=>{const path=new URL(req.url,'http://localhost').pathname; if(html[path]){res.setHeader('Content-Type','text/html');res.end(html[path]);return;} if(path==='/assets/style.css'||path==='/assets/catalog.js'){res.setHeader('Content-Type',path.endsWith('.css')?'text/css':'application/javascript');res.end(path.endsWith('.css')?oldCss:oldJs);return;} if(path==='/assets/site-v4.css'||path==='/assets/catalog-v4.js'){res.setHeader('Content-Type',path.endsWith('.css')?'text/css':'application/javascript');res.end(readFileSync(join(root,path)));return;}res.statusCode=404;res.end();});
 (async()=>{
  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
  const browser=await chromium.launch({executablePath:await chrome.executablePath(),args:chrome.args,headless:true});
@@ -33,8 +33,14 @@ const server=http.createServer((req,res)=>{const path=new URL(req.url,'http://lo
   await page.setViewportSize({width:375,height:800}); await page.goto(`http://127.0.0.1:${server.address().port}/faq.php`); await page.locator('summary').first().click(); assert.equal(await page.locator('details').first().evaluate(x=>x.open),true);
   await page.keyboard.press('Tab'); assert.ok(await page.evaluate(()=>document.activeElement!==document.body));
   await page.goto(`http://127.0.0.1:${server.address().port}/addon.php?uuid=${id}`); await page.waitForSelector('.actions a');
-  assert.equal(await page.locator('.actions a').nth(0).getAttribute('href'),'tg://resolve?domain=Mc_addonbot&start='+id);
-  assert.equal(await page.locator('.actions a').nth(1).getAttribute('href'),'https://t.me/Mc_addonbot?start='+id);
+  const primary=page.locator('.actions a').nth(0);
+  assert.equal(await primary.getAttribute('href'),'https://t.me/Mc_addonbot?start='+id);
+  assert.equal(await primary.getAttribute('target'),'_blank');
+  assert.match(await primary.getAttribute('rel'),/noopener/);
+  assert.equal(await page.locator('.actions a').nth(1).getAttribute('href'),'tg://resolve?domain=Mc_addonbot&start='+id);
+  await page.context().route('https://t.me/**',route=>route.fulfill({status:200,contentType:'text/html',body:'<title>Telegram test</title>'}));
+  const popupPromise=page.waitForEvent('popup'); await primary.click(); const popup=await popupPromise;
+  await popup.waitForLoadState(); assert.equal(popup.url(),'https://t.me/Mc_addonbot?start='+id); await popup.close();
   await page.locator('.telegram-help summary').click(); assert.equal(await page.locator('.manual-command').innerText(),'/start '+id);
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false,'detail overflow');
   console.log('Browser FAQ, keyboard focus and Telegram app, web and manual fallbacks passed (mock catalog).');

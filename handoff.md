@@ -1,5 +1,10 @@
 # Handoff — Marketplace Trader
 
+## Telegram new-tab link (2026-11-27)
+
+- User requested a browser deep link that opens in a new tab. Local website now uses an ordinary user-activated `https://t.me/Mc_addonbot?start=<uuid>` link with `_blank` and `noopener noreferrer`; it retains the `tg://` direct-app link and manual `/start <uuid>` fallback. Asset filenames are now v4. No bot, Worker or database changes. Browser or network configuration can still prevent Telegram from opening; Android app launch and file delivery require actual device testing after upload.
+- Passed website jsdom tests, PHP lint and Chromium layout tests, including a mocked `t.me` popup that verifies click, new tab and matching UUID. ZIP rebuilt and tested with private config excluded. The owner must upload it; the live site is unchanged until then.
+
 ## Telegram opening investigation (2026-11-27)
 
 - User supplied screenshots: Bio Dome detail loaded, then blank `t.me` browser/custom tab with a loading bar. The assistant initially misidentified the line; acknowledged correction. Cause unproven. Live Bio Dome link correctly includes `037f9836-628f-4213-b42d-f03e080ca2e0` and Telegram's t.me preview responds in our environment, but not proof of access on their phone. One screenshot address is truncated and appears to show a different start value; do not assume the complete URL.

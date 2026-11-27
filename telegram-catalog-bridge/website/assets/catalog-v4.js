@@ -75,8 +75,10 @@
       const meta=el('div','metadata'); const size=bytes(item.file_size); if(size) meta.append(el('span','',size)); if(item.version) meta.append(el('span','','Version '+item.version)); if(item.file_ext) meta.append(el('span','',String(item.file_ext).toUpperCase())); if(meta.children.length) content.append(meta);
       const payload=encodeURIComponent(item.uuid);
       const actions=el('div','actions');
-      actions.append(link('Open Telegram app','tg://resolve?domain=Mc_addonbot&start='+payload,'btn btn-primary'),link('Open Telegram web link','https://t.me/Mc_addonbot?start='+payload,'text-link'));
-      content.append(actions,el('p','action-note','Allow your browser to open Telegram if prompted. In the bot, tap Start if it appears.'));
+      const telegramLink=link('Open in Telegram','https://t.me/Mc_addonbot?start='+payload,'btn btn-primary');
+      telegramLink.target='_blank'; telegramLink.rel='noopener noreferrer';
+      actions.append(telegramLink,link('Try opening the app directly','tg://resolve?domain=Mc_addonbot&start='+payload,'text-link'));
+      content.append(actions,el('p','action-note','The Telegram link opens in a new tab or the app. Allow your browser to open Telegram if prompted, then tap Start if it appears.'));
       const help=el('details','telegram-help'); help.append(el('summary','','Telegram not opening?'));
       help.append(el('p','','Open the Telegram app, search for @Mc_addonbot, and send this message to the bot:'));
       help.append(el('p','manual-command','/start '+item.uuid));
