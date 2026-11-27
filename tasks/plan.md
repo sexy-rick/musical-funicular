@@ -1,3 +1,33 @@
+# Plan — catalog card actions, Telegram help and filter order
+
+**Status:** Plan only; no application, Worker, bot, database, ZIP or deployment changes. Based on the v11 checkout and the current user request. The older plans below are historical; this plan controls where they conflict.
+
+## Intended layout
+
+On the catalog card, keep the title and creator above a single action row:
+
+`[ category on the left ]  [ Share icon ] [ Download ]`
+
+Share sits immediately to the **left** of Download; the two controls are aligned at the right. Category remains a clickable catalog filter when its value is supported; unknown category stays plain text. Show the row even if category is absent. This is the best interpretation of the request; for very narrow cards or long category names, allow the category to wrap or use a carefully tested responsive fallback rather than clipping or overlapping controls. Do not shrink the 44px mobile targets.
+
+## Changes after build authorization
+
+1. **Catalog cards:** Update `telegram-catalog-bridge/website/assets/catalog-v11.js:56-67` and the corresponding v11 CSS into newly versioned assets. Move the category from the creator paragraph to the row beside the action controls; retain creator link and its existing exact-name filter. Keep category, Share and Download as sibling controls—not nested in the title/image anchor or in one another. Keep the category URL, item detail link, Download navigation, browser-back state, link-only Share and copy-link fallback intact. Put share feedback and fallback *below* the fixed row so opening it does not move Share/Download. Handle empty/missing category, long strings, narrow columns and long creator names without overflow. One row at typical mobile/desktop sizes, graceful wrapping where it cannot physically fit.
+2. **Telegram help:** In `assets/catalog-v11.js:125-130` keep the native `<details><summary>` disclosure and accessible keyboard behavior. Replace the browser's default triangle with an actual locally bundled disclosure icon (e.g. a Material chevron) which changes orientation for open/closed; mark the decorative SVG hidden from assistive tech, retain a visible focus indicator and respect reduced motion. Existing `icons-v10.svg` has a `content_copy` icon; add the chosen disclosure icon in a new versioned SVG if needed, with its license and existing references preserved. Keep “Telegram not opening?” and the helpful instruction “Open the Telegram app, search for @Mc_addonbot.” Remove exactly “and send this message to the bot:” as requested. Retain the `/start <UUID>` command, without a line break or added space inside the UUID in the copied value, and an accessible **Copy** button alongside it.
+3. **Copy behavior:** Copy exactly `/start ` followed by the current item's UUID using `navigator.clipboard.writeText` from the click. Announce “Copied” in an accessible status region. If the Clipboard API is unavailable or permission fails, keep the command selectable and give an honest “Select and copy the command” fallback; never claim copy succeeded when it did not. Button remains usable by keyboard and on mobile. Do not alter the Telegram links or payloads, and do not copy any file ID or secret.
+4. **Filter panel:** In `website/lib/view.php:16` move the **existing** Sorting control below Last updated, rather than creating a duplicate or changing its `name`, ID or values. Suggested visible order: Type → Last updated → Sorting → actions. Remove the exact explanatory paragraph “Dates reflect catalog updates, not original uploads. Relevance ranks matches when searching.” Retain clear option labels **Newest updated** and **Oldest updated** so they are not mistaken for release dates; existing Relevance remains query-based. Maintain active-filter indicator, apply/cancel/clear, focus handling, current URL/early-prefetch and pagination behavior. No Worker or API change is needed for reordering the existing control.
+
+## Verification and delivery
+
+- Add a failing regression first. Extend mocked Chromium tests at 320/375/599/600/768/900/1024/1440px to measure category/share/download order and alignment, narrow/long/unknown/missing labels, no horizontal overflow, and stable buttons when share fallback appears. Exercise keyboard navigation, category destination and download/return link.
+- Test Telegram disclosure open/close, icon and keyboard behavior, exact UUID copied for several valid IDs, permission rejection/API absence, readable selectable fallback and accessible status; check light/dark, reduced motion and touch sizes. Browser mocks do not prove the real phone's clipboard permissions or Telegram delivery.
+- Verify filter order and absence of the specified explanatory paragraph while applying each sort, categories and update range; exercise cancel/clear and URL persistence. Keep existing Worker, bot, suggestion, branding and website tests; run JS/PHP syntax and responsive browser tests. Do not claim real-device testing unless actually performed.
+- Version the modified CSS/JS and SVG if changed; update all dependent templates/static error pages as needed and retain older assets for cached HTML. Rebuild `website-upload.zip`, verify integrity, `.htaccess` and exclusion of private `config.php`, retain v11 rollback, and provide a GitHub link after the user authorizes implementation. Upload is performed by the user. No Worker deployment or bot/database changes are needed for this request.
+
+---
+
+# Previous plans (historical)
+
 # Plan — catalog filters, navigation, theme and price investigation
 
 **Date:** 2026-11-27. **Status:** planning only; no site, bot, Worker, D1, ZIP or deployment changes. The user's latest screenshots show the v10-style header and no-results suggestions; exact live asset hashes are not independently verified. This plan supersedes conflicting portions of the earlier roadmap retained below.
