@@ -1,0 +1,45 @@
+export const CONFIG = {
+  BOT_USERNAME: 'Mc_addonbot',
+  ADMIN_ID: 6185846289,
+  OLD_FILES_BOT_USERNAME: 'MARKETPLACE_FILE_ROBOT',
+  MAIN_CHANNEL_ID: '@Minecraft_addon_free_download',
+  ACTION_CHANNEL_ID: '@action_and_stuff_free_download',
+  SKIN_CHANNEL_ID: '@Minecraft_skin_pack_and_addon',
+  BEDROCK_CHANNEL_ID: '@minecraft_bedrock_free_download',
+  APK_PHOTO_FILE_ID: 'AgACAgUAAxkBAAJvwmsAAV3ATz-J9_Ch27KB6UkwzqLJ6AACRxZrG1SIAAFUVCutVjlwpwABAQADAgADeQADPQQ',
+  RL_CRAFT_CHANNEL_ID: '@rl_craft_free_download_minecraft',
+  MAIN_CHANNEL_URL: 'https://t.me/Minecraft_addon_free_download',
+  BACKUP_CHANNEL_URL: 'https://t.me/minecraft_addon_free',
+  SEARCH_TUTORIAL_URL: 'https://t.me/Minecraft_addon_free_download/5589',
+  REQUEST_BOT_URL: 'https://t.me/MARKETPLACE_TRADER_HELPER_BOT?start=suggest',
+  ADDLIST_URL: 'https://t.me/addlist/3jA5xvuoUOUzYmE1',
+  TERMS_URL: 'https://telegra.ph/MARKETPLACE-Terms--condition-02-03',
+};
+
+export const REQUIRED_CHANNELS = [
+  { id: '@Minecraft_addon_free_download', link: 'https://t.me/Minecraft_addon_free_download', name: 'Minecraft Addons' },
+  { id: '@minecraft_group_chat_friends', link: 'https://t.me/minecraft_group_chat_friends', name: 'Minecraft Group' },
+  { id: '@action_and_stuff_free_download', link: 'https://t.me/action_and_stuff_free_download', name: 'Action & Stuff' },
+  { id: '@minecraft_bedrock_free_download', link: 'https://t.me/minecraft_bedrock_free_download', name: 'Minecraft Bedrock' },
+  { id: '@rl_craft_free_download_minecraft', link: 'https://t.me/rl_craft_free_download_minecraft', name: 'HONEYFROST ADD-ONS' },
+];
+
+export const EMOJI = {
+  CHECK: '5206607081334906820',
+  CROSS: '5210952531676504517',
+  WARNING: '5447644880824181073',
+  LIGHTNING: '5456140674028019486',
+  PENCIL: '5395444784611480792',
+  SPARKLES: '5325547803936572038',
+  SHIELD: '5251203410396458957',
+  DISGUISE: '5391112412445288650',
+  ID: '5334544901428229844',
+  LINK: '5271604874419647061',
+  COMPUTER: '5282843764451195532',
+  ENVELOPE: '5253742260054409879',
+  DOWN: '5406745015365943482',
+  FIRE: '5424972470023104089',
+  MEGAPHONE: '5424818078833715060',
+  DIAMOND: '5427168083074628963',
+  HEART: '5465665476971471368',
+};
