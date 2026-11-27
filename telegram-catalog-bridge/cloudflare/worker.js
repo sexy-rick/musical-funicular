@@ -45,6 +45,8 @@ export default {
         const cat = url.searchParams.get('cat') || '';
         const creator=(url.searchParams.get('creator') || '').trim();
         const updated=url.searchParams.get('updated') || '';
+        const sort=url.searchParams.get('sort') || 'updated_desc';
+        if (!['updated_desc','updated_asc','relevance'].includes(sort)) return response({error:'Invalid sort'},400);
         const ranges={'7d':7,'30d':30,'1y':365};
         if (creator.length>255 || (updated && !Object.hasOwn(ranges,updated))) return response({error:'Invalid filter'},400);
         if (cat && !categories.has(cat)) return response({error: 'Invalid category'}, 400);
@@ -53,10 +55,16 @@ export default {
         if (cat) { where.push('category = ?'); args.push(cat); }
         if (creator) { where.push('creator = ? COLLATE NOCASE'); args.push(creator); }
         if (updated) { where.push('updated_at >= ?'); args.push(Math.floor(Date.now()/1000)-ranges[updated]*86400); }
-        if (q) { where.push('(title LIKE ? OR creator LIKE ?)'); args.push('%' + q + '%', '%' + q + '%'); }
+        const escaped=q.replace(/[\\%_]/g, '\\$&');
+        if (q) { where.push("(title LIKE ? ESCAPE '\\' OR creator LIKE ? ESCAPE '\\')"); args.push('%' + escaped + '%', '%' + escaped + '%'); }
         const clause = where.join(' AND ');
         const totalRow = await env.CATALOG.prepare('SELECT COUNT(*) AS total FROM addons WHERE ' + clause).bind(...args).first();
-        const result = await env.CATALOG.prepare('SELECT uuid,title,creator,category,version,thumbnail_url,marketplace_url,file_size,file_ext,updated_at FROM addons WHERE ' + clause + ' ORDER BY updated_at DESC, uuid ASC LIMIT 24 OFFSET ?').bind(...args, (page - 1) * 24).all();
+        let order=sort==='updated_asc' ? 'updated_at ASC, uuid ASC' : 'updated_at DESC, uuid ASC'; const orderArgs=[];
+        if (sort==='relevance' && q) {
+          order="CASE WHEN title = ? COLLATE NOCASE THEN 0 WHEN title LIKE ? ESCAPE '\\' THEN 1 WHEN title LIKE ? ESCAPE '\\' THEN 2 WHEN creator = ? COLLATE NOCASE THEN 3 WHEN creator LIKE ? ESCAPE '\\' THEN 4 ELSE 5 END, updated_at DESC, uuid ASC";
+          orderArgs.push(q,escaped+'%','%'+escaped+'%',q,escaped+'%');
+        }
+        const result = await env.CATALOG.prepare('SELECT uuid,title,creator,category,version,thumbnail_url,marketplace_url,file_size,file_ext,updated_at FROM addons WHERE ' + clause + ' ORDER BY ' + order + ' LIMIT 24 OFFSET ?').bind(...args, ...orderArgs, (page - 1) * 24).all();
         return response({ok: true, items: result.results, total: totalRow.total, page});
       }
       const match = /^\/addons\/([0-9a-f-]+)$/i.exec(url.pathname);

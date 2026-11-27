@@ -42,3 +42,16 @@ assert.equal((await req('/addons?creator=Same%20Studio&updated=bad'))[0],400); a
 assert.equal((await req('/addons?creator=%25'))[1].total,0);
 const headers=await worker.fetch(new Request('https://example.workers.dev/addons?creator=Same%20Studio'),env); assert.equal(headers.headers.get('cache-control'),'no-store'); assert.equal(headers.headers.get('access-control-allow-origin'),'https://marketplacetrader.great-site.net');
 console.log('Worker tests passed');
+// Sort globally before pagination; legacy calls retain newest-updated ordering.
+let newest=await req('/addons?creator=Same%20Studio&cat=WORLD&sort=updated_desc&page=1');
+let oldest=await req('/addons?creator=Same%20Studio&cat=WORLD&sort=updated_asc&page=1');
+assert.equal(newest[1].total,26);assert.equal(oldest[1].items[0].title,'Old pack');assert.notEqual(newest[1].items[0].title,'Old pack');
+let oldestSecond=await req('/addons?creator=Same%20Studio&cat=WORLD&sort=updated_asc&page=2');
+assert.equal(oldestSecond[1].items.length,2); assert.equal(new Set([...oldest[1].items,...oldestSecond[1].items].map(x=>x.uuid)).size,26);
+assert.equal((await req('/addons?sort=bad'))[0],400);
+const literal=await req('/addons?q=%25');assert.equal(literal[1].total,0);
+for(const [id,title,creator] of [['33333333-3333-4333-8333-333333333333','apple','Maker'],['44444444-4444-4444-8444-444444444444','Apple orchard','Maker'],['55555555-5555-4555-8555-555555555555','Pineapple','Maker'],['66666666-6666-4666-8666-666666666666','Other','Apple']]) await post({...payload,uuid:id,title,creator,updated_at:now-99});
+const relevant=await req('/addons?q=apple&sort=relevance');assert.deepEqual(relevant[1].items.map(x=>x.title),['apple','Apple orchard','Pineapple','Other']);
+console.log('Global sort, stable pagination, validation, literal search and relevance passed');
+assert.equal((await req('/addons?q=_'))[1].total,0);
+assert.deepEqual((await req('/addons?sort=relevance'))[1].items.map(x=>x.uuid),(await req('/addons'))[1].items.map(x=>x.uuid));
