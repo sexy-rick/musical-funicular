@@ -1,0 +1,46 @@
+name: Deploy catalog bridge
+
+# Deliberately triggered only by a change to the deploy marker on this session's
+# branch. No PR trigger: untrusted PRs must never get deployment credentials.
+on:
+  push:
+    branches:
+      - arena/e09cf031-musical-funicular
+    paths:
+      - telegram-catalog-bridge/cloudflare/deploy-trigger.txt
+
+permissions:
+  contents: read
+
+concurrency:
+  group: catalog-bridge-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+      D1_ID: ${{ vars.CLOUDFLARE_D1_DATABASE_ID }}
+      WORKER_NAME: ${{ vars.CLOUDFLARE_CATALOG_WORKER_NAME }}
+    steps:
+      - name: Check out this branch
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Set up Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+      - name: Validate settings and prepare Worker configuration
+        run: node telegram-catalog-bridge/cloudflare/prepare-config.cjs
+      - name: Install Wrangler (before exposing the deployment secret)
+        run: npm install --prefix "$RUNNER_TEMP/wrangler" --no-save --no-audit --no-fund wrangler@4.168.0
+      - name: Deploy Worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then echo 'Missing CLOUDFLARE_API_TOKEN secret.'; exit 1; fi
+          "$RUNNER_TEMP/wrangler/node_modules/.bin/wrangler" deploy --config "$RUNNER_TEMP/catalog-wrangler.json"

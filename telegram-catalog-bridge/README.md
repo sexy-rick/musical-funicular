@@ -20,6 +20,8 @@
 
 ## 1. Set up the Cloudflare bridge
 
+You can follow the manual steps below, or use [GITHUB-DEPLOY.md](GITHUB-DEPLOY.md) to deploy the Worker through GitHub Actions after creating D1. Do not do both deployments to an existing Worker name.
+
 Dashboard labels may differ slightly. Do not select a paid plan.
 
 1. In Cloudflare dashboard, open **Workers & Pages**. Create a Worker on the free plan and give it a name. Use **Edit code**, replace the sample code with the full contents of `cloudflare/worker.js`, and save/deploy. It may show a service error until the next steps are complete.
