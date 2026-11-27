@@ -28,7 +28,9 @@
     const img=el('img'); img.alt=''; img.width=640; img.height=360; img.loading=eager ? 'eager' : 'lazy'; img.addEventListener('error',fallback,{once:true}); img.src=url; node.append(img);
   }
   function card(item, index) {
-    const article=el('article','card'); const anchor=link('',detailUrl(item.uuid),'card-link'); const cover=el('div','card-image'); image(cover,item,index < 4);
+    const article=el('article','card'); const anchor=link('',detailUrl(item.uuid),'card-link'); const cover=el('div','card-image');
+    const visibleColumns=window.innerWidth>=1024 ? 4 : window.innerWidth>=900 ? 3 : window.innerWidth>=600 ? 2 : 1;
+    image(cover,item,index < visibleColumns);
     const body=el('div','card-body'); body.append(el('h3','',item.title));
     const meta=el('p','card-creator'); const creator=typeof item.creator === 'string' && item.creator.trim() ? item.creator : 'Creator not listed'; meta.append(document.createTextNode(creator));
     if (typeof item.category === 'string' && item.category.trim()) { const dot=el('span','','·'); dot.setAttribute('aria-hidden','true'); meta.append(dot,document.createTextNode(item.category.toLowerCase())); }
