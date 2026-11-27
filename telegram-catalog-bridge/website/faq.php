@@ -11,4 +11,5 @@
 <details><summary>Are these for Minecraft Java Edition?</summary><p>The catalog is intended for Minecraft Bedrock Edition. Bedrock add-ons should not be assumed to work with Java Edition.</p></details>
 <details><summary>Why isn't the collection loading?</summary><p>Check your internet connection and enable JavaScript, then try again. The catalog service may sometimes be temporarily unavailable.</p></details>
 </div></div></section>
+<section class="support-links"><h2>Need more help?</h2><p><a href="https://t.me/minecraft_group_chat_friends">Community chat</a> <a href="https://t.me/alchemisst">Contact support</a></p></section>
 <?php pageFooter(); ?>

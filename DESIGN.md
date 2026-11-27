@@ -19,3 +19,9 @@ A mobile-first Minecraft Bedrock catalog. Primary journey: browse/search → ite
 - Motion is short, optional and purposeful; prefer subtle transform/opacity feedback and remove nonessential movement for `prefers-reduced-motion`. Avoid autoplay, flashing and scroll hijacking.
 - Check 320px reflow, 200–400% zoom, keyboard, reduced motion and screen readers where available. No full WCAG compliance claim without audit.
 - Static error pages should explain recovery while preserving actual server status where hosting allows. Provider/proxy errors may bypass them.
+
+## v6 theme, sharing and return navigation
+
+- Auto follows the operating system; Light and Dark are explicit preferences saved locally when possible. The static error pages also offer the selector. Flat semantic surface, text, action and focus colors adapt to theme. Selected interaction feedback is restrained and reduced-motion removes it.
+- Download always retains the existing UUID bot deep link. Share opens a keyboard-accessible dialog with Telegram/WhatsApp link sharing, Discord copy, native More and copy/select fallback. A thumbnail is prepared only after opening, with CORS, HTTPS, image-type and 2 MiB checks. Native sharing can attach it only when the browser accepts it; neither target behavior nor rich previews are guaranteed. Generic Material icons avoid unverified use of third-party logos. Material icon license is included.
+- When a listing is opened from a catalog/search page, the return link uses browser history when the recorded same-origin referrer matches. Browser restoration can preserve scroll and avoid another request when BFCache is available, but reloads and cache misses may still fetch. Direct visits fall back to the catalog. Only a navigation URL is temporarily stored; catalog responses are not cached or persisted, respecting the Worker's `no-store` policy.
