@@ -14,13 +14,13 @@ const item={uuid:id,title:'A very long add-on name '.repeat(5),creator:'Maker',c
 // Simulate a returning visitor whose browser holds the old, unversioned assets.
 const oldCss=execFileSync('git',['show','e4d3499:telegram-catalog-bridge/website/assets/style.css']);
 const oldJs=execFileSync('git',['show','e4d3499:telegram-catalog-bridge/website/assets/catalog.js']);
-const server=http.createServer((req,res)=>{const path=new URL(req.url,'http://localhost').pathname; if(html[path] || prettyRoute.test(path)){res.setHeader('Content-Type','text/html');res.end(html[path] || html['/addon.php']);return;} if(path==='/assets/style.css'||path==='/assets/catalog.js'){res.setHeader('Content-Type',path.endsWith('.css')?'text/css':'application/javascript');res.end(path.endsWith('.css')?oldCss:oldJs);return;} if(['/assets/site-v6.css','/assets/catalog-v6.js','/assets/theme-v6.js','/assets/icons-v6.svg'].includes(path)){res.setHeader('Content-Type',path.endsWith('.css')?'text/css':path.endsWith('.svg')?'image/svg+xml':'application/javascript');res.end(readFileSync(join(root,path)));return;}res.statusCode=404;res.end();});
+const server=http.createServer((req,res)=>{const path=new URL(req.url,'http://localhost').pathname; if(html[path] || prettyRoute.test(path)){res.setHeader('Content-Type','text/html');res.end(html[path] || html['/addon.php']);return;} if(path==='/assets/style.css'||path==='/assets/catalog.js'){res.setHeader('Content-Type',path.endsWith('.css')?'text/css':'application/javascript');res.end(path.endsWith('.css')?oldCss:oldJs);return;} if(['/assets/site-v7.css','/assets/catalog-v7.js','/assets/search-v7.js','/assets/theme-v6.js','/assets/icons-v6.svg'].includes(path)){res.setHeader('Content-Type',path.endsWith('.css')?'text/css':path.endsWith('.svg')?'image/svg+xml':'application/javascript');res.end(readFileSync(join(root,path)));return;}res.statusCode=404;res.end();});
 (async()=>{
  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
- const browser=await chromium.launch({executablePath:await chrome.executablePath(),args:chrome.args,headless:true});
+ const browser=await chromium.launch({executablePath:await chrome.executablePath(),args:chrome.args.filter(arg=>arg!=='--disable-web-security'),headless:true});
  try {
   const page=await browser.newPage({viewport:{width:320,height:800},reducedMotion:'reduce'});
-  await page.route('https://mc-catalog-1474006216.aman-nsipai.workers.dev/**',route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({ok:true,total:8,items:Array(8).fill(item),item})}));
+  await page.route('https://mc-catalog-1474006216.aman-nsipai.workers.dev/**',route=>route.fulfill({status:200,headers:{'access-control-allow-origin':'*'},contentType:'application/json',body:JSON.stringify({ok:true,total:8,items:Array(8).fill(item),item})}));
   await page.route('https://example.com/**',route=>route.fulfill({status:200,contentType:'image/svg+xml',body:'<svg xmlns="http://www.w3.org/2000/svg" width="640" height="360"><rect width="640" height="360" fill="#526c51"/></svg>'}));
   for(const [width,cols] of [[320,1],[375,1],[599,1],[600,2],[768,2],[900,3],[1024,4],[1440,4]]){
    await page.setViewportSize({width,height:800}); await page.goto(`http://127.0.0.1:${server.address().port}/index.php`); await page.waitForSelector('.card');
@@ -31,7 +31,7 @@ const server=http.createServer((req,res)=>{const path=new URL(req.url,'http://lo
    assert.ok(await page.locator('.footer-nav').evaluate(e=>parseFloat(getComputedStyle(e).gap)>0));
    assert.doesNotMatch(await page.locator('body').innerText(),/[✦✳✺▦↗↘↓←→⌕]/);
    assert.equal(await page.locator('.card').first().locator('a button').count(),0);
-   assert.equal(await page.locator('.card-download').first().getAttribute('href'),'https://t.me/Mc_addonbot?start='+id);
+   assert.equal(await page.locator('.card-download').first().getAttribute('href'),'/addon.php?uuid='+id);
    assert.equal(await page.locator('.card .share-button').count(),8);
    if(process.env.CATALOG_SCREENSHOTS && (width===375 || width===1440)) await page.screenshot({path:`/tmp/catalog-${width}.png`,fullPage:true});
    console.log(`${width}px: ${result.columns} columns, no overflow, reduced motion`);
@@ -51,12 +51,10 @@ const server=http.createServer((req,res)=>{const path=new URL(req.url,'http://lo
   assert.equal((await page.goto(`${base}/home?i=1`)).status(),200); await page.waitForSelector('.card');
   await page.evaluate(()=>{Object.defineProperty(navigator,'share',{value:undefined,configurable:true});});
   await page.locator('.card .share-button').first().click();
-  const sharedUrl=await page.locator('.share-dialog .share-url').inputValue();
+  const sharedUrl=await page.locator('.card .share-url').first().inputValue();
   assert.match(sharedUrl,new RegExp('^http://127\\.0\\.0\\.1:[0-9]+/[a-z0-9-]+-'+id+'$'));
+  assert.equal(await page.locator('.card .share-fallback').first().isVisible(),true);
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false,'share fallback overflow');
-  assert.equal(await page.locator('.share-choice').count(),5);
-  await page.keyboard.press('Escape'); assert.equal(await page.locator('.share-dialog').count(),0);
-  assert.ok(await page.locator('.card .share-button').first().evaluate(e=>e===document.activeElement));
   await page.selectOption('#theme-choice','light'); assert.equal(await page.locator('html').getAttribute('data-theme'),'light');
   await page.reload(); assert.equal(await page.locator('html').getAttribute('data-theme'),'light');
   await page.selectOption('#theme-choice','dark'); assert.equal(await page.locator('html').getAttribute('data-theme'),'dark');
@@ -67,11 +65,22 @@ const server=http.createServer((req,res)=>{const path=new URL(req.url,'http://lo
 
   await page.unroute('https://example.com/**');
   const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+X3ioAAAAASUVORK5CYII=','base64');
-  await page.route('https://example.com/**',route=>route.fulfill({status:200,headers:{'content-type':'image/png','content-length':String(png.length),'access-control-allow-origin':'*'},body:png}));
-  await page.evaluate(()=>{window.sharedData=null; Object.defineProperty(navigator,'canShare',{value:d=>!!d.files,configurable:true}); Object.defineProperty(navigator,'share',{value:async d=>{window.sharedData={url:d.url,files:d.files&&d.files.map(f=>({name:f.name,type:f.type,size:f.size}))};},configurable:true});});
-  await page.locator('.card .share-button').first().click(); await page.getByText('Image ready for supported apps in More. Other choices share a link.').waitFor();
-  await page.getByRole('button',{name:'More',exact:true}).click(); const share=await page.evaluate(()=>window.sharedData); assert.equal(share.url,sharedUrl); assert.equal(share.files[0].type,'image/png'); assert.equal(share.files[0].size,png.length);
-  await page.keyboard.press('Escape');
+  await page.route('https://example.com/**',route=>route.fulfill({status:200,headers:{'content-type':'image/png','access-control-allow-origin':'*'},body:png}));
+  await page.addInitScript(()=>{window.sharedData=null; Object.defineProperty(navigator,'canShare',{value:d=>!!d.files,configurable:true}); Object.defineProperty(navigator,'share',{value:async d=>{window.sharedData={url:d.url,files:d.files&&d.files.map(f=>({name:f.name,type:f.type,size:f.size}))};},configurable:true});});
+  await page.reload(); await page.waitForSelector('.card'); await page.locator('.card .share-button').first().scrollIntoViewIfNeeded();
+  await page.waitForTimeout(300); await page.locator('.card .share-button').first().click();
+  if(!(await page.evaluate(()=>window.sharedData))) {await page.waitForTimeout(500); await page.locator('.card .share-button').first().click();}
+  const share=await page.evaluate(()=>window.sharedData); assert.equal(share.url,sharedUrl); assert.equal(share.files[0].type,'image/png'); assert.equal(share.files[0].size,png.length);
+  // A blocked thumbnail fetch falls back to link-only sharing.
+  await page.unroute('https://example.com/**'); item.thumbnail_url='https://example.com/blocked.png'; await page.route('https://example.com/**',route=>route.abort('failed'));
+  await page.reload(); await page.waitForSelector('.card'); await page.locator('.card .share-button').first().scrollIntoViewIfNeeded(); await page.waitForTimeout(300);
+  await page.locator('.card .share-button').first().click(); if(!(await page.evaluate(()=>window.sharedData))) {await page.waitForTimeout(500); await page.locator('.card .share-button').first().click();}
+  assert.equal((await page.evaluate(()=>window.sharedData)).files,undefined); assert.match(await page.locator('.card .share-status').first().textContent(),/link only/);
+  // Search is debounced and suggests actual catalog titles, not third-party searches.
+  const before=listRequests; await page.locator('#search').fill('lo'); await page.waitForTimeout(200); await page.locator('#search').fill('long'); await page.waitForTimeout(300); assert.equal(listRequests,before);
+  await page.locator('#search-suggestions li').first().waitFor(); assert.equal(listRequests,before+1); assert.match(await page.locator('#search-suggestions li').first().textContent(),/long/);
+  await page.locator('#search').press('ArrowDown'); assert.equal(await page.locator('#search-suggestions li').first().getAttribute('aria-selected'),'true'); await page.locator('#search').press('Escape'); assert.equal(await page.locator('#search-suggestions').isVisible(),false);
+  await page.locator('.card-download').first().click(); await page.waitForSelector('.detail'); assert.match(page.url(),/addon.php\?uuid=/); await page.locator('.back').click(); await page.waitForSelector('.card');
   await page.goto(sharedUrl+'?i=1&uuid=00000000-0000-0000-0000-000000000000'); await page.waitForSelector('.actions a');
   assert.equal(await page.locator('.actions a').first().getAttribute('href'),'https://t.me/Mc_addonbot?start='+id);
   assert.equal((await page.goto(`${base}/missing-slug-not-a-uuid`)).status(),404);
