@@ -7,6 +7,7 @@ try {
     $stmt->execute(['uuid' => $id]);
     $row = $stmt->fetch();
     $url = httpsUrl($row['file_url'] ?? '');
-    if (!$url) { http_response_code(404); exit('File not found.'); }
+    if (!$row) { http_response_code(404); exit('Add-on not found.'); }
+    if (!$url) { header('Location: addon.php?uuid=' . rawurlencode($id), true, 302); exit; }
     header('Location: ' . $url, true, 302); exit;
 } catch (Throwable $ex) { http_response_code(503); exit('Downloads are temporarily unavailable. Please try again later.'); }

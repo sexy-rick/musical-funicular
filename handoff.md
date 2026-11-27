@@ -6,7 +6,7 @@
 - Domain `marketplacetrader.great-site.net` and database `if0_43548113_mcaddons` were set up by user. Actual website deployment and DB connection have not been verified.
 - User asked for Material 3 Expressive: no AI button, gradients, glow or background glow. Updated PHP templates and CSS use flat, muted solid surfaces, rounded shapes and responsive layouts.
 - Catalog shell now renders a neutral unavailable message when config/database is missing or unreachable, without exposing details. User will create their own `config.php`; ZIP must never contain it. Local config is gitignored.
-- GitHub Releases are the interim file warehouse; R2 deferred because user has no card. The storage guard in `website/lib/storage_guard.php` is **not connected to any upload path** and does not enforce a cap. The earlier claim that a hard cap was built in was incorrect. Future R2 integration needs a properly enforced quota, including concurrency/temporary replacement usage and the provider's billing units.
+- User chose Telegram-only downloads temporarily until they can set up Cloudflare R2, not GitHub Releases. Catalog rows must use the exact existing bot UUID, with an empty `file_url` (the current NOT NULL column accepts an empty string); detail pages then show Telegram only. Adding an HTTPS R2 `file_url` later enables direct download. Rows must still be populated manually for now; bot synchronization and R2 uploads are not implemented. Bot may require channel membership. The storage guard in `website/lib/storage_guard.php` is **not connected to any upload path** and does not enforce a cap. Future R2 integration needs a properly enforced quota, including concurrency/temporary replacement usage and the provider's billing units.
 
 ## Files
 
@@ -18,7 +18,7 @@
 ## Validation / next steps
 
 - PHP syntax checked with PHP WASM CLI; rendered home without config and confirmed layout and fallback message. A real MySQL connection, direct downloads, InfinityFree behavior and responsive display remain unchecked.
-- User uploads updated ZIP, extracts to `htdocs` overwriting old website files, preserves/creates `config.php`, and visits `/index.php`. Then test actual catalog and download links. No secrets in chat.
+- User uploads updated ZIP and extracts to `htdocs` overwriting old website files, preserving `config.php`. Obtain an existing bot deep link/UUID and authorized add-on metadata, add one row with empty `file_url`, and test Telegram delivery. Then implement sync and connect R2 later. No secrets in chat.
 - If site remains blank, request screenshot and check exact URL/config/hosting rather than assuming the cause.
 
 **Skipped / Unchecked:** Live deployment, MySQL queries and direct-download flow, actual mobile browser, Telegram fallback.
