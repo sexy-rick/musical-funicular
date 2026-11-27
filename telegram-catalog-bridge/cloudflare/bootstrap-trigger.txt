@@ -1,0 +1,2 @@
+Owner requested creation of a new, separate catalog Worker through GitHub Actions.
+This marker contains no credentials. The deployment refuses to overwrite an existing Worker.

@@ -1,0 +1,44 @@
+name: Create catalog Worker
+
+# Only runs for a deliberate change to this branch's bootstrap marker.
+on:
+  push:
+    branches:
+      - arena/e09cf031-musical-funicular
+    paths:
+      - telegram-catalog-bridge/cloudflare/bootstrap-trigger.txt
+
+permissions:
+  contents: read
+
+jobs:
+  bootstrap:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+      - name: Install Wrangler
+        run: npm install --prefix "$RUNNER_TEMP/wrangler" --no-save --no-audit --no-fund wrangler@4.168.0
+      - name: Check that this is a new Worker, then deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN || secrets.TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID || vars.ID || secrets.CLOUDFLARE_ACCOUNT_ID || secrets.ID }}
+          REPOSITORY_ID: ${{ github.repository_id }}
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then echo 'Missing deployment secret: CLOUDFLARE_API_TOKEN or TOKEN.'; exit 1; fi
+          if [[ ! "$CLOUDFLARE_ACCOUNT_ID" =~ ^[0-9a-fA-F]{32}$ ]]; then echo 'Missing or invalid account ID setting.'; exit 1; fi
+          if [[ ! "$REPOSITORY_ID" =~ ^[0-9]+$ ]]; then echo 'Invalid repository ID.'; exit 1; fi
+          WORKER_NAME="mc-catalog-${REPOSITORY_ID}"
+          STATUS=$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/scripts/${WORKER_NAME}")
+          if [ "$STATUS" = 200 ]; then echo "Worker $WORKER_NAME already exists; refusing to overwrite it."; exit 1; fi
+          if [ "$STATUS" != 404 ]; then echo "Could not verify Worker does not exist (HTTP $STATUS). Nothing deployed."; exit 1; fi
+          "$RUNNER_TEMP/wrangler/node_modules/.bin/wrangler" deploy telegram-catalog-bridge/cloudflare/worker.js \
+            --name "$WORKER_NAME" --compatibility-date 2026-01-01
+          echo "Created $WORKER_NAME. D1 and the sync secret still need to be configured."
