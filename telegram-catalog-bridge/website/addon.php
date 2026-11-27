@@ -1,11 +1,8 @@
 <?php
-require __DIR__ . '/lib/db.php'; require __DIR__ . '/lib/view.php'; require __DIR__ . '/lib/catalog.php';
-$id = addonId(); $a = false; $available = true;
-if ($id !== '') { try { $a = catalogGet($id); } catch (Throwable $ex) { $available = false; } }
-if ($available && !$a) http_response_code(404);
-pageHeader($a ? $a['title'] : 'Add-on');
+require __DIR__ . '/lib/db.php'; require __DIR__ . '/lib/view.php';
+pageHeader('Add-on');
 ?>
 <section class="inner-page"><a class="back" href="index.php">← Back to collection</a>
-<?php if (!$available): unavailable(); elseif (!$a): ?><div class="empty"><h1>Add-on not found</h1><p>It may no longer be available.</p></div><?php else: $image = httpsUrl($a['thumbnail_url'] ?? ''); $market = httpsUrl($a['marketplace_url'] ?? ''); ?>
-<div class="detail"><div class="detail-image"><?php if ($image): ?><img src="<?= e($image) ?>" alt=""><?php else: ?><span class="block-icon" aria-hidden="true">▦</span><?php endif; ?></div><div class="detail-content"><span class="eyebrow"><?= e($a['category'] ?: 'ADD-ON') ?></span><h1><?= e($a['title']) ?></h1><p class="detail-creator">By <?= e($a['creator'] ?: 'Creator not listed') ?></p><div class="metadata"><span><?= e(formatBytes($a['file_size'] ?? 0)) ?></span><?php if (!empty($a['version'])): ?><span>Version <?= e($a['version']) ?></span><?php endif; ?><?php if (!empty($a['file_ext'])): ?><span><?= e(strtoupper($a['file_ext'])) ?></span><?php endif; ?></div><div class="actions"><?php if (httpsUrl($a['file_url'] ?? '')): ?><a class="btn btn-primary" href="download.php?uuid=<?= rawurlencode($id) ?>">Download file <span aria-hidden="true">↓</span></a><?php endif; ?><a class="btn <?= httpsUrl($a['file_url'] ?? '') ? 'btn-tonal' : 'btn-primary' ?>" href="https://t.me/Mc_addonbot?start=<?= rawurlencode($id) ?>">Open in Telegram ↗</a></div><?php if ($market): ?><p><a class="text-link" href="<?= e($market) ?>" target="_blank" rel="noopener noreferrer">View on Marketplace ↗</a></p><?php endif; ?><div class="install"><h2>How to install</h2><ol><li>Download the file.</li><li>Open it with Minecraft to import.</li><li>Enable the pack in your world settings.</li></ol></div></div></div><?php endif; ?></section>
+<div id="addon-results" aria-live="polite"><div class="empty"><p>Loading add-on…</p></div></div>
+<script src="assets/catalog.js" defer></script></section>
 <?php pageFooter(); ?>

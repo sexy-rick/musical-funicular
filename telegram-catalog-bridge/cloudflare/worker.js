@@ -3,7 +3,7 @@
 const ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const categories = new Set(['ADD-ON','TEXTURE PACK','SKIN PACK','WORLD','MASHUP PACK','TEMPLATE','APPLICATION']);
 function response(value, status = 200) {
-  return new Response(JSON.stringify(value), { status, headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' } });
+  return new Response(JSON.stringify(value), { status, headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', 'x-content-type-options': 'nosniff', 'access-control-allow-origin': 'https://marketplacetrader.great-site.net' } });
 }
 function authorised(req, secret) {
   if (typeof secret !== 'string' || secret.length < 32 || secret === 'CHANGE_ME_RANDOM_32_CHARS') return false;

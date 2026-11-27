@@ -1,0 +1,1 @@
+Deploy browser CORS support while preserving existing D1 and secrets.

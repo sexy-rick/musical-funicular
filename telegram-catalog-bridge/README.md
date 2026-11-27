@@ -5,7 +5,7 @@
 ## What this does
 
 - The bot sends add-on metadata to a small Cloudflare Worker. The Worker stores it in a free-tier D1 database.
-- InfinityFree reads the public catalog from that Worker. Visitors browse and search, then open an add-on in Telegram.
+- The InfinityFree website lets the visitor's browser read the public catalog from the Worker. InfinityFree blocks its own servers from reaching workers.dev, so server-side requests are not used. Visitors browse and search, then open an add-on in Telegram.
 - Existing bot records need a **one-time batch import**; new uploads/updates and bot `/delete` events attempt to sync automatically.
 - **Does not upload files to R2.** Direct downloads, R2 uploads, quota enforcement and R2 replacement will be built separately. No 9.4 GB guard is enforced here.
 - The bridge exposes titles, creator names, categories, versions, size, thumbnail and Marketplace URLs publicly. Only publish records you have permission to share. It never copies Telegram file IDs, bot tokens or user data.
@@ -33,12 +33,8 @@ Dashboard labels may differ slightly. Do not select a paid plan.
 ## 2. Prepare the website (without replacing your secret config)
 
 1. Download `website-upload.zip` **from this folder**. Extract its contents into InfinityFree `htdocs`, replacing matching site files. It does **not** contain `config.php`, so your existing config is preserved. Do not extract the bot or Cloudflare files into `htdocs`.
-2. Edit the existing `htdocs/config.php` privately. Inside its `return [ ... ];` array, add this line, replacing the URL with your real Worker URL from step 1:
-
-   `'catalog_url' => 'https://your-worker.your-account.workers.dev',`
-
-   Keep the other lines and commas. There must be no trailing `/`. **This URL is public and is not the secret key.**
-3. Visit the website. Before importing add-ons, an empty catalog is expected. If it says the catalog is getting ready, stop and check Worker URL, binding, D1 schema and site connection.
+2. The browser catalog script is configured for `https://mc-catalog-1474006216.aman-nsipai.workers.dev`. No changes to your existing `config.php` are required. The Worker must allow browser requests from `https://marketplacetrader.great-site.net` via its CORS header.
+3. Visit the website. Before importing add-ons, an empty catalog is expected. If it says the catalog is getting ready, check that the new Worker code was deployed, the D1 binding exists, and the browser can reach the Worker. JavaScript must be enabled.
 
 ## 3. Update the bot safely
 
@@ -63,7 +59,7 @@ Keep a copy of revision 66. If saving or running the bot produces an error, stop
 - No automatic background retry queue. A failed upload/update sync can be retried with `/websync`; a failed deletion requires an explicit repair (ask for help), otherwise the old website listing may remain. Running `/websync` alone does not remove stale listings. Monitor admin messages and test before relying on it.
 - Listing endpoint is public by design, bounded to 24 items per page; website search currently shows the first 24 matches. Any internet user can read the catalog. Do not send private metadata.
 - The free-tier Worker/D1 and your web host have quotas; failures return a friendly unavailable message. No guarantee of uptime. A full batch can require up to 20 Worker writes; large catalogs need several batches.
-- No authenticated Mini App endpoint is being called from InfinityFree: Telegram Serverless Mini App endpoints require verified Telegram init data. The bot instead sends public metadata to the Worker. InfinityFree calls the Worker over outgoing HTTPS. These integrations still require live testing.
+- No authenticated Mini App endpoint is being called from InfinityFree: Telegram Serverless Mini App endpoints require verified Telegram init data. The bot sends public metadata to the Worker, and the browser reads it directly. InfinityFree blocks outbound requests from its own servers to workers.dev, so the previous PHP approach is not used. JavaScript and the Worker CORS configuration are required. Live integration still requires testing.
 - A deleted catalog entry is recorded as a tombstone to stop older import records restoring it. Two updates within the same second may not be reflected reliably; retry after another update. Existing bot items with non-UUID IDs are skipped because the current bot's normal direct UUID deep-link flow does not serve them.
 
 ## Rollback
