@@ -7,7 +7,8 @@ Public download-only website on InfinityFree (free + subdomain, $0) listing Mine
 ## 2. Current state
 
 - **Step 2 DONE** — InfinityFree subdomain live: `https://marketplacetrader.great-site.net` (verified: shows "Your domain is ready!" from `/htdocs`).
-- **Step 3 in progress** — notebook SQL ready at `website/database.sql`. Awaiting user paste in phpMyAdmin.
+- **Step 3 DONE** — notebook created in phpMyAdmin: database `if0_43548113_mcaddons`, table `addons` (verified: green success, 0.1261s). Test row inserted.
+- **Steps 4–5 BUILT (local)** — `website/` pages + brain ready: `index.php`, `addon.php`, `search.php`, `download.php`, `lib/db.php`, `lib/storage_guard.php` (9.4 GB cap), `assets/style.css`, `.htaccess`, `config.example.php`. Awaiting user upload to `htdocs` + `config.php` creation.
 - **Step 1 paused** — user has no card right now, so Cloudflare R2 deferred. Interim warehouse = GitHub Releases (no card).
 - **Plan complete** (`tasks/plan.md`). Architecture locked: PHP + MySQL catalog on InfinityFree, binaries on GitHub Releases now (R2 later when card available), Telegram deep link as fallback.
 - **Vibecoder roadmap added** (`tasks/plan.md` §1.5): 8 small steps (warehouse → house → notebook → pages → brain → files → fallback → SSL). User does ~45 min of clicking; agent writes all code.
@@ -43,7 +44,9 @@ Public download-only website on InfinityFree (free + subdomain, $0) listing Mine
 
 1. **Step 1 (PAUSED):** Cloudflare R2 deferred (no card). Use GitHub Releases as warehouse for now. Migrate to R2 later by changing `file_url` only.
 2. **Step 2 (DONE):** InfinityFree subdomain `https://marketplacetrader.great-site.net` live.
-3. **Step 3 (you paste, 5 min, NEXT):** Open VistaPanel → phpMyAdmin → SQL tab → paste `website/database.sql` → Go. Done when you see `addons` table.
+3. **Step 3 (DONE):** Notebook `addons` table created in `if0_43548113_mcaddons`.
+4. **Steps 4–5 (BUILT, NEXT: upload):** User uploads `website/` contents to `htdocs` via File Manager, creates `config.php` with DB creds from VistaPanel, deletes `index2.html`, tests site.
+5. **Step 6:** Upload first 5 files to GitHub Releases, add to notebook, test downloads.
 4. **Steps 4–5 (me, 0 min for you):** I build HTML/CSS pages + PHP brain.
 5. **Step 6 (you upload 5 files, me add to notebook, 15 min):** First real downloads on your phone.
 6. **Step 7 (me):** Telegram fallback button.

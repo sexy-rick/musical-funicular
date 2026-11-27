@@ -1,0 +1,8 @@
+# Protect server-side files (bot token / DB creds must never be served)
+<FilesMatch "^(config\.php|config\.example\.php)$">
+  Require all denied
+</FilesMatch>
+<FilesMatch "\.(sql|env|key)$">
+  Require all denied
+</FilesMatch>
+Options -Indexes
