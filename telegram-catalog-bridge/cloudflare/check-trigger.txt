@@ -1,0 +1,1 @@
+Check the Worker health and public catalog endpoint after D1 binding.
