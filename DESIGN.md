@@ -37,3 +37,9 @@ A mobile-first Minecraft Bedrock catalog. Primary journey: browse/search → ite
 - Display the owner-supplied Marketplace Trader logo and favicon set. Accent surfaces use #c88828 with dark text; readable dark/light theme text uses a contrasting companion color. The artwork is the supplied logo rather than a generated replacement.
 - Desktop hero category shortcuts and detail discovery links make use of available space without fabricated content. Responsive grid thresholds remain unchanged.
 - Search pages begin the existing Worker request in the document head and consume that same request once; there is no persistent metadata cache. Suggestions still wait 500 ms after typing. Performance depends on hosting, browser, network and Worker response time.
+
+## v9 catalog controls
+
+- Cards have transparent theme-aware borders around their content and actions; card Share is icon-only with an accessible label and native sharing/copy fallback. The hero uses “Browse DLCs”, and visible headings/count/category chips are replaced by a screen-reader heading and filter dialog beside the search field.
+- The filter dialog combines category and honestly labeled Last updated, while exact studio names link to paginated catalog results. The Worker applies filters before pagination; no metadata caching. Unknown prices and file metadata are labeled, never fabricated. User-approved Worker deployment preserves the existing D1 binding and secret; no migration or bot update.
+- The catalog starts its one metadata request early, renders four cards first and the rest in small chunks, and lazy-loads nonvisible images. Network and host latency can still prevent instant loading.

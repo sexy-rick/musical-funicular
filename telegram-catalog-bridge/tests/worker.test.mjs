@@ -30,4 +30,15 @@ await post({...payload,updated_at:102,title:'New version'}); assert.equal((await
 assert.equal((await post({...payload,uuid:'not-valid'}))[0],400);
 assert.equal((await post({...payload,updated_at:0}))[0],400);
 assert.equal((await req('/addons?cat=OTHER'))[0],400);
+// Filters apply before pagination, without changing the old endpoint or exposing secrets.
+const now=Math.floor(Date.now()/1000);
+for(let i=0;i<30;i++) {const id=`00000000-0000-4000-8000-${String(i).padStart(12,'0')}`; await post({...payload,uuid:id,creator:'Same Studio',category:i<25?'WORLD':'ADD-ON',title:`Studio pack ${i}`,updated_at:now-3600});}
+await post({...payload,uuid:'11111111-1111-4111-8111-111111111111',creator:'Same Studio extra',category:'WORLD',title:'Other studio',updated_at:now-3600});
+await post({...payload,uuid:'22222222-2222-4222-8222-222222222222',creator:'Same Studio',category:'WORLD',title:'Old pack',updated_at:1});
+let filtered=await req('/addons?creator=Same%20Studio&cat=WORLD&updated=7d&page=1'); assert.equal(filtered[1].total,25); assert.equal(filtered[1].items.length,24);
+filtered=await req('/addons?creator=same%20studio&cat=WORLD&updated=7d&page=2'); assert.equal(filtered[1].items.length,1);
+filtered=await req('/addons?creator=Same%20Studio&q=Studio%20pack%202&cat=WORLD&updated=30d'); assert.equal(filtered[1].total,6);
+assert.equal((await req('/addons?creator=Same%20Studio&updated=bad'))[0],400); assert.equal((await req('/addons?creator='+('a'.repeat(256))))[0],400);
+assert.equal((await req('/addons?creator=%25'))[1].total,0);
+const headers=await worker.fetch(new Request('https://example.workers.dev/addons?creator=Same%20Studio'),env); assert.equal(headers.headers.get('cache-control'),'no-store'); assert.equal(headers.headers.get('access-control-allow-origin'),'https://marketplacetrader.great-site.net');
 console.log('Worker tests passed');

@@ -1,6 +1,6 @@
 const assert=require('node:assert/strict');
 const {readFileSync}=require('node:fs'); const {join}=require('node:path'); const {JSDOM}=require('jsdom');
-const script=readFileSync(join(__dirname,'../website/assets/search-v7.js'),'utf8');
+const script=readFileSync(join(__dirname,'../website/assets/search-v9.js'),'utf8');
 const wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 (async()=>{
  const dom=new JSDOM('<form class="search"><input id="search"><ul id="search-suggestions" hidden></ul><span id="suggestions-status"></span></form>',{url:'https://example.org/',runScripts:'outside-only'});

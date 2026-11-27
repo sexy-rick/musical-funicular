@@ -1,1 +1,1 @@
-Deploy browser CORS support while preserving existing D1 and secrets.
+Deploy v9 creator and last-updated read filters after local verification; preserve bindings and secrets.

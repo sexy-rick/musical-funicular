@@ -43,10 +43,16 @@ export default {
       if (request.method === 'GET' && url.pathname === '/addons') {
         const q = (url.searchParams.get('q') || '').trim().slice(0, 100);
         const cat = url.searchParams.get('cat') || '';
+        const creator=(url.searchParams.get('creator') || '').trim();
+        const updated=url.searchParams.get('updated') || '';
+        const ranges={'7d':7,'30d':30,'1y':365};
+        if (creator.length>255 || (updated && !Object.hasOwn(ranges,updated))) return response({error:'Invalid filter'},400);
         if (cat && !categories.has(cat)) return response({error: 'Invalid category'}, 400);
         const page = Math.max(1, Math.min(100000, Number.parseInt(url.searchParams.get('page') || '1', 10) || 1));
         const where = ['deleted = 0']; const args = [];
         if (cat) { where.push('category = ?'); args.push(cat); }
+        if (creator) { where.push('creator = ? COLLATE NOCASE'); args.push(creator); }
+        if (updated) { where.push('updated_at >= ?'); args.push(Math.floor(Date.now()/1000)-ranges[updated]*86400); }
         if (q) { where.push('(title LIKE ? OR creator LIKE ?)'); args.push('%' + q + '%', '%' + q + '%'); }
         const clause = where.join(' AND ');
         const totalRow = await env.CATALOG.prepare('SELECT COUNT(*) AS total FROM addons WHERE ' + clause).bind(...args).first();
