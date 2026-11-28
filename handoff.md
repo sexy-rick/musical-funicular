@@ -1,5 +1,15 @@
 # Handoff — Marketplace Trader
 
+## Alium catalog card action placement (2026-11-27)
+
+- Matched the v13 website card layout: category on the left, Share and Download aligned to the right. Supported categories filter the catalog, unknown categories remain plain text, and large text uses a stacked fallback. Detail, Share and one-tap bot Download are separate controls; no bot, Worker or website changes. Added widget checks for ordering, callbacks and large text; Android device behavior remains unverified.
+
+## Alium UI research and local refresh (2026-11-27)
+
+- Researched Android/Flutter adaptive layout, accessibility, honest progress and performance together with the earlier website and Toolcoin work. See `tasks/alium-ui-deep-research.md` for evidence, screen audit and remaining checks.
+- Locally reorganized details, Downloads and Settings into rounded, width-bounded Material 3 sections; added a labeled search field and a replacement-result loading state; removed profile music and `just_audio` while preserving Telegram profile fields and account flow. Kept the transfer controller, support links, themes and storage actions. No metadata integration, updater, website, bot, Worker, database, public release or deployment.
+- Added widget tests for empty/active Downloads, narrow Settings and music removal. Dart syntax parsed with tree-sitter and `git diff --check` passed, but Flutter SDK is unavailable locally: analyzer, tests and APK build have **not** been run for this change. Actual Android/Telegram/Minecraft, screen reader, color contrast and responsive rendering remain unverified; prior signed artifact predates this UI refresh.
+
 ## Alium Android final-touches build
 
 - User reports the prior app works and authorized the planned changes. Workspace contained the previously built prototype, verified byte-identical to remote for core Android source; no reset or cleanup. Added Alium branding, new application ID and flower icon, in-place bot request with explicit candidate confirmation, Downloads history and Android scoped storage, country picker, profile/settings, theme persistence and app-first Telegram links. Toolcoin metadata service is not integrated because its licensing, access and live responses remain unverified. No bot/Worker/schema/website deployment. GitHub Actions run `46114693934` on app commit `11eac12` passed Flutter analysis, unit/widget tests and debug APK build; artifact `15251019283` expires 2026-12-12. Live Telegram, Android storage, profile, session branding and phone-number formatting remain untested by the agent. The APK may require privately configured developer Telegram app credentials; the debug fallback is explicitly labeled. This package installs separately from the old prototype. See `android-app/README.md`.

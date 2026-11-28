@@ -4,7 +4,6 @@ import 'package:country_picker/country_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:just_audio/just_audio.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'bot_download.dart';
 import 'catalog.dart';
@@ -90,9 +89,9 @@ class _CatalogScreenState extends State<CatalogScreen> {
       const SizedBox(height:18),Wrap(spacing:8,alignment:WrapAlignment.end,children:[TextButton(onPressed:()=>setSheet((){c='';u='';s='updated_desc';}),child:const Text('Clear')),TextButton(onPressed:()=>Navigator.pop(context,false),child:const Text('Cancel')),FilledButton(onPressed:()=>Navigator.pop(context,true),child:const Text('Apply filters'))])]))))));
     if(applied==true){category=c;updated=u;sort=s;page=1;reload();}
   }
-  Widget browse()=>Column(children:[if(creator.isNotEmpty) ListTile(title:Text('Studio: $creator'),trailing:IconButton(tooltip:'Clear studio',icon:const Icon(Icons.close),onPressed:(){creator='';page=1;reload();})),Padding(padding:const EdgeInsets.fromLTRB(16,8,16,8),child:Row(children:[Expanded(child:TextField(controller:search,textInputAction:TextInputAction.search,decoration:InputDecoration(hintText:'Search add-ons or creators',filled:true,border:OutlineInputBorder(borderRadius:BorderRadius.circular(28),borderSide:BorderSide.none),isDense:true,suffixIcon:search.text.isEmpty?null:IconButton(tooltip:'Clear search',onPressed:(){search.clear();runSearch('');},icon:const Icon(Icons.close))),onChanged:(v){setState((){});scheduleSearch(v);},onSubmitted:runSearch)),IconButton(tooltip:'Search',onPressed:()=>runSearch(search.text),icon:const Icon(Icons.search)),IconButton(tooltip:'Filters',onPressed:filters,icon:const Icon(Icons.tune))])),
+  Widget browse()=>Column(children:[if(creator.isNotEmpty) ListTile(title:Text('Studio: $creator'),trailing:IconButton(tooltip:'Clear studio',icon:const Icon(Icons.close),onPressed:(){creator='';page=1;reload();})),Padding(padding:const EdgeInsets.fromLTRB(16,8,16,8),child:Row(children:[Expanded(child:TextField(controller:search,textInputAction:TextInputAction.search,decoration:InputDecoration(hintText:'Search add-ons or creators',labelText:'Search catalog',filled:true,border:OutlineInputBorder(borderRadius:BorderRadius.circular(28),borderSide:BorderSide.none),isDense:true,suffixIcon:search.text.isEmpty?null:IconButton(tooltip:'Clear search',onPressed:(){search.clear();runSearch('');},icon:const Icon(Icons.close))),onChanged:(v){setState((){});scheduleSearch(v);},onSubmitted:runSearch)),IconButton(tooltip:'Search',onPressed:()=>runSearch(search.text),icon:const Icon(Icons.search)),IconButton(tooltip:'Filters',onPressed:filters,icon:const Icon(Icons.tune))])),
     Expanded(child:FutureBuilder<CatalogPage>(future:result,builder:(context,snapshot){
-      if(snapshot.connectionState!=ConnectionState.done && !snapshot.hasData)return const Center(child:CircularProgressIndicator());
+      if(snapshot.connectionState!=ConnectionState.done)return const Center(child:Column(mainAxisSize:MainAxisSize.min,children:[CircularProgressIndicator(),SizedBox(height:12),Text('Loading catalog…')]));
       if(snapshot.hasError)return Center(child:Column(mainAxisSize:MainAxisSize.min,children:[const Text('Could not load the catalog.'),const SizedBox(height:12),FilledButton(onPressed:reload,child:const Text('Try again'))]));
       final data=snapshot.data!;
       if(data.items.isEmpty)return Center(child:Padding(padding:const EdgeInsets.all(24),child:Column(mainAxisSize:MainAxisSize.min,children:[Text(data.total>0?'Page not available':'No matches found',style:Theme.of(context).textTheme.headlineSmall),const SizedBox(height:8),const Text('Try another search or filter.'),if(query.isNotEmpty) ...[const SizedBox(height:16),FilledButton(onPressed:()=>openTelegram(context,'MARKETPLACE_TRADER_HELPER_BOT','suggest'),child:const Text('Request in Telegram'))]])));
@@ -100,7 +99,7 @@ class _CatalogScreenState extends State<CatalogScreen> {
         final cardWidth=(box.maxWidth-32-(columns-1)*12)/columns;
         final scale=MediaQuery.textScalerOf(context).scale(1).clamp(1.0,2.5);
         final extent=cardWidth*9/16+175*scale;
-        return CustomScrollView(slivers:[SliverPadding(padding:const EdgeInsets.all(16),sliver:SliverGrid(delegate:SliverChildBuilderDelegate((context,index){final item=data.items[index];return CatalogCard(item:item,onTap:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>DetailScreen(item:item,telegram:telegram,downloads:downloads,onFilter:filterItem))),onShare:()=>shareItem(context,item.uuid,item.title,item.version),onDownload:() async { if(!telegram.ready){await Navigator.push(context,MaterialPageRoute(builder:(_)=>AccountScreen(telegram:telegram)));return;} try {await downloads.request(item.uuid,itemTitle:item.title,itemCategory:item.category,itemVersion:item.version);if(mounted)setState(()=>tab=1);} catch(e){if(context.mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e is TdException?e.message:'Download could not start.')));} });},childCount:data.items.length),gridDelegate:SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount:columns,crossAxisSpacing:12,mainAxisSpacing:12,mainAxisExtent:extent))),SliverToBoxAdapter(child:Padding(padding:const EdgeInsets.fromLTRB(16,12,16,24),child:Row(mainAxisAlignment:MainAxisAlignment.center,children:[OutlinedButton(onPressed:page>1?(){page--;reload();}:null,child:const Text('Previous')),Padding(padding:const EdgeInsets.symmetric(horizontal:16),child:Text('Page $page')),OutlinedButton(onPressed:page*24<data.total?(){page++;reload();}:null,child:const Text('Next'))]))) ]);
+        return CustomScrollView(slivers:[SliverPadding(padding:const EdgeInsets.all(16),sliver:SliverGrid(delegate:SliverChildBuilderDelegate((context,index){final item=data.items[index];return CatalogCard(item:item,onTap:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>DetailScreen(item:item,telegram:telegram,downloads:downloads,onFilter:filterItem))),onCategory:const {'ADD-ON','TEXTURE PACK','SKIN PACK','WORLD','MASHUP PACK','TEMPLATE','APPLICATION'}.contains(item.category.toUpperCase().trim()) ? () => filterItem(type:item.category.toUpperCase().trim()) : null,onShare:()=>shareItem(context,item.uuid,item.title,item.version),onDownload:() async { if(!telegram.ready){await Navigator.push(context,MaterialPageRoute(builder:(_)=>AccountScreen(telegram:telegram)));return;} try {await downloads.request(item.uuid,itemTitle:item.title,itemCategory:item.category,itemVersion:item.version);if(mounted)setState(()=>tab=1);} catch(e){if(context.mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e is TdException?e.message:'Download could not start.')));} });},childCount:data.items.length),gridDelegate:SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount:columns,crossAxisSpacing:12,mainAxisSpacing:12,mainAxisExtent:extent))),SliverToBoxAdapter(child:Padding(padding:const EdgeInsets.fromLTRB(16,12,16,24),child:Row(mainAxisAlignment:MainAxisAlignment.center,children:[OutlinedButton(onPressed:page>1?(){page--;reload();}:null,child:const Text('Previous')),Padding(padding:const EdgeInsets.symmetric(horizontal:16),child:Text('Page $page')),OutlinedButton(onPressed:page*24<data.total?(){page++;reload();}:null,child:const Text('Next'))]))) ]);
       });
     }))]);
   @override Widget build(BuildContext context)=>Scaffold(
@@ -120,9 +119,49 @@ class _ExpressivePressState extends State<ExpressivePress> {
 }
 
 class CatalogCard extends StatelessWidget {
-  const CatalogCard({super.key,required this.item,required this.onTap,this.onDownload,this.onShare}); final CatalogItem item; final VoidCallback onTap; final VoidCallback? onDownload,onShare;
-  @override Widget build(BuildContext context)=>ExpressivePress(child:Card(clipBehavior:Clip.antiAlias,child:InkWell(onTap:onTap,child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[AspectRatio(aspectRatio:16/9,child:CatalogImage(url:item.thumbnail)),Expanded(child:Padding(padding:const EdgeInsets.all(12),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text(item.title,maxLines:2,overflow:TextOverflow.ellipsis,style:Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight:FontWeight.w700)),Text(item.creator.isEmpty?'Creator not listed':item.creator,maxLines:1,overflow:TextOverflow.ellipsis),Text(item.category,maxLines:1,overflow:TextOverflow.ellipsis,style:Theme.of(context).textTheme.labelMedium),if(onDownload!=null||onShare!=null) ...[const Spacer(),Row(children:[if(onShare!=null) IconButton(tooltip:'Share',onPressed:onShare,icon:const Icon(Icons.share_outlined)),if(onDownload!=null) Expanded(child:FilledButton.icon(onPressed:onDownload,icon:const Icon(Icons.download),label:const Text('Download')))])]])))]))));
+  const CatalogCard({super.key,required this.item,required this.onTap,this.onDownload,this.onShare,this.onCategory});
+  final CatalogItem item;
+  final VoidCallback onTap;
+  final VoidCallback? onDownload,onShare,onCategory;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme=Theme.of(context);
+    final category=item.category.trim().toLowerCase();
+    Widget categoryLabel() {
+      if(category.isEmpty) return const SizedBox.shrink();
+      final label=Text(category,maxLines:2,overflow:TextOverflow.ellipsis,style:theme.textTheme.labelMedium);
+      return onCategory==null ? Align(alignment:Alignment.centerLeft,child:label) : TextButton(
+        onPressed:onCategory,
+        style:TextButton.styleFrom(padding:EdgeInsets.zero,alignment:Alignment.centerLeft,minimumSize:const Size(48,48)),
+        child:label,
+      );
+    }
+    Widget actions() => Row(mainAxisSize:MainAxisSize.min,children:[
+      if(onShare!=null) IconButton(tooltip:'Share',onPressed:onShare,icon:const Icon(Icons.share_outlined)),
+      if(onDownload!=null) FilledButton.icon(onPressed:onDownload,icon:const Icon(Icons.download),label:const Text('Download')),
+    ]);
+    return ExpressivePress(child:Card(clipBehavior:Clip.antiAlias,child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[
+      InkWell(onTap:onTap,child:AspectRatio(aspectRatio:16/9,child:CatalogImage(url:item.thumbnail))),
+      Expanded(child:Padding(padding:const EdgeInsets.all(12),child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[
+        InkWell(onTap:onTap,child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+          Text(item.title,maxLines:2,overflow:TextOverflow.ellipsis,style:theme.textTheme.titleMedium?.copyWith(fontWeight:FontWeight.w700)),
+          Text(item.creator.isEmpty?'Creator not listed':item.creator,maxLines:1,overflow:TextOverflow.ellipsis),
+        ])),
+        const Spacer(),
+        LayoutBuilder(builder:(context,box){
+          // At large text sizes put the category above the actions rather than
+          // squeezing either label or reducing the touch targets.
+          final scale=MediaQuery.textScalerOf(context).scale(1);
+          final separate=category.isNotEmpty && (onShare!=null || onDownload!=null) && box.maxWidth < 70 + (onShare!=null ? 48 : 0) + (onDownload!=null ? 88 + 48*scale : 0);
+          if(separate) return Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[categoryLabel(),Align(alignment:Alignment.centerRight,child:actions())]);
+          return Row(children:[Expanded(child:categoryLabel()),actions()]);
+        }),
+      ]))),
+    ])));
+  }
 }
+
 class CatalogImage extends StatelessWidget {
   const CatalogImage({super.key,required this.url}); final String url;
   @override Widget build(BuildContext context){final uri=Uri.tryParse(url);Widget fallback()=>ColoredBox(color:Theme.of(context).colorScheme.surfaceContainerHighest,child:const Center(child:Text('Image unavailable')));if(uri==null||uri.scheme!='https'||uri.host.isEmpty)return fallback();return Image.network(url,fit:BoxFit.cover,width:double.infinity,errorBuilder:(_,error,stack)=>fallback());}
@@ -130,8 +169,38 @@ class CatalogImage extends StatelessWidget {
 
 class DetailScreen extends StatelessWidget {
   const DetailScreen({super.key,required this.item,required this.telegram,required this.downloads,this.onFilter});
-  final CatalogItem item;final TelegramClient telegram;final BotDownload downloads;final void Function({String? studio,String? type})? onFilter;
-  @override Widget build(BuildContext context)=>Scaffold(appBar:AppBar(title:const Text('Details')),body:ListView(padding:const EdgeInsets.all(18),children:[ClipRRect(borderRadius:BorderRadius.circular(20),child:AspectRatio(aspectRatio:16/9,child:CatalogImage(url:item.thumbnail))),const SizedBox(height:18),Text(item.title,style:Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight:FontWeight.bold)),const SizedBox(height:8),ListTile(title:const Text('Studio'),subtitle:Text(item.creator.isEmpty?'Not available':item.creator),onTap:item.creator.isEmpty||onFilter==null?null:(){onFilter!(studio:item.creator);Navigator.pop(context);}),ListTile(title:const Text('Category'),subtitle:Text(item.category.isEmpty?'Not available':item.category),onTap:item.category.isEmpty||onFilter==null?null:(){onFilter!(type:item.category);Navigator.pop(context);}),if(item.version.isNotEmpty)Text('Version: ${item.version}'),Text('File type: ${item.fileExt.isEmpty?'Not available':item.fileExt}'),if(item.fileSize>0)Text('File size: ${(item.fileSize/1048576).toStringAsFixed(1)} MB'),const SizedBox(height:8),const Text('Marketplace price: Not available'),const SizedBox(height:20),DownloadPanel(item:item,telegram:telegram,downloads:downloads),const SizedBox(height:8),OutlinedButton.icon(onPressed:()=>shareItem(context,item.uuid,item.title,item.version),icon:const Icon(Icons.share_outlined),label:const Text('Share')),if(!telegram.ready) ...[const SizedBox(height:12),OutlinedButton(onPressed:()=>openTelegram(context,'Mc_addonbot',item.uuid),child:const Text('Open in Telegram'))] ]));
+  final CatalogItem item;
+  final TelegramClient telegram;
+  final BotDownload downloads;
+  final void Function({String? studio,String? type})? onFilter;
+  @override
+  Widget build(BuildContext context) {
+    final theme=Theme.of(context);
+    return Scaffold(
+      appBar:AppBar(title:Text(item.title,overflow:TextOverflow.ellipsis)),
+      body:Center(child:ConstrainedBox(constraints:const BoxConstraints(maxWidth:760),child:ListView(padding:const EdgeInsets.fromLTRB(20,8,20,28),children:[
+        ClipRRect(borderRadius:BorderRadius.circular(24),child:AspectRatio(aspectRatio:16/9,child:CatalogImage(url:item.thumbnail))),
+        const SizedBox(height:20),
+        Text(item.title,style:theme.textTheme.headlineSmall?.copyWith(fontWeight:FontWeight.bold)),
+        if(item.creator.isNotEmpty) ...[const SizedBox(height:4),Text(item.creator,style:theme.textTheme.titleMedium?.copyWith(color:theme.colorScheme.onSurfaceVariant))],
+        const SizedBox(height:20),
+        DownloadPanel(item:item,telegram:telegram,downloads:downloads),
+        const SizedBox(height:8),
+        OutlinedButton.icon(onPressed:()=>shareItem(context,item.uuid,item.title,item.version),icon:const Icon(Icons.share_outlined),label:const Text('Share')),
+        if(!telegram.ready) ...[const SizedBox(height:8),TextButton(onPressed:()=>openTelegram(context,'Mc_addonbot',item.uuid),child:const Text('Open in Telegram'))],
+        const SizedBox(height:24),
+        Text('Details',style:theme.textTheme.titleLarge?.copyWith(fontWeight:FontWeight.bold)),
+        const SizedBox(height:8),
+        Card(child:Column(children:[
+          ListTile(leading:const Icon(Icons.person_outline),title:const Text('Studio'),subtitle:Text(item.creator.isEmpty?'Not available':item.creator),onTap:item.creator.isEmpty||onFilter==null?null:(){onFilter!(studio:item.creator);Navigator.pop(context);}),
+          ListTile(leading:const Icon(Icons.category_outlined),title:const Text('Category'),subtitle:Text(item.category.isEmpty?'Not available':item.category),onTap:item.category.isEmpty||onFilter==null?null:(){onFilter!(type:item.category);Navigator.pop(context);}),
+          if(item.version.isNotEmpty) ListTile(leading:const Icon(Icons.layers_outlined),title:const Text('Version'),subtitle:Text(item.version)),
+          if(item.fileExt.isNotEmpty) ListTile(leading:const Icon(Icons.insert_drive_file_outlined),title:const Text('File type'),subtitle:Text(item.fileExt)),
+          if(item.fileSize>0) ListTile(leading:const Icon(Icons.storage_outlined),title:const Text('File size'),subtitle:Text('${(item.fileSize/1048576).toStringAsFixed(1)} MB')),
+        ])),
+      ]))),
+    );
+  }
 }
 
 class DownloadPanel extends StatefulWidget {
@@ -152,31 +221,105 @@ class _DownloadPanelState extends State<DownloadPanel> {
 
 class FileTile extends StatelessWidget {
   const FileTile({super.key,required this.file,required this.downloads,required this.perform});
-  final BotFile file;final BotDownload downloads;final Future<void> Function(Future<void> Function()) perform;
-  @override Widget build(BuildContext context){final active=downloads.selected.contains(file.id), saved=downloads.isSaved(file.id);return Card(child:Padding(padding:const EdgeInsets.all(14),child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[Text(file.name,style:Theme.of(context).textTheme.titleMedium),if(file.bytes>0)Text('${(file.bytes/1048576).toStringAsFixed(1)} MB'),if(active&&!saved) ...[const SizedBox(height:8),LinearProgressIndicator(value:file.bytes>0?(file.downloaded/file.bytes).clamp(0.0,1.0):null),Text(file.complete?'Saving…':'Downloading ${(file.downloaded/1048576).toStringAsFixed(1)} MB')],if(saved) const Text('Saved') else if(!active&&!downloads.paused) TextButton(onPressed:()=>perform(()=>downloads.download(file.id)),child:const Text('Retry'))])));}
+  final BotFile file;
+  final BotDownload downloads;
+  final Future<void> Function(Future<void> Function()) perform;
+  @override
+  Widget build(BuildContext context) {
+    final active=downloads.selected.contains(file.id), saved=downloads.isSaved(file.id);
+    final theme=Theme.of(context);
+    final progress=file.bytes>0?(file.downloaded/file.bytes).clamp(0.0,1.0):null;
+    return Padding(padding:const EdgeInsets.symmetric(vertical:6),child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[
+      Text(file.name,style:theme.textTheme.titleSmall),
+      if(active&&!saved) ...[
+        const SizedBox(height:8),
+        LinearProgressIndicator(value:progress,semanticsLabel:'File download progress'),
+        const SizedBox(height:6),
+        Text(file.complete?'Saving…':file.bytes>0?'${(file.downloaded/1048576).toStringAsFixed(1)} / ${(file.bytes/1048576).toStringAsFixed(1)} MB':'${(file.downloaded/1048576).toStringAsFixed(1)} MB downloaded',style:theme.textTheme.bodySmall),
+      ] else if(saved) const Text('Saved') else if(!downloads.paused) Align(alignment:Alignment.centerLeft,child:TextButton(onPressed:()=>perform(()=>downloads.download(file.id)),child:const Text('Retry'))),
+    ]));
+  }
 }
 
 class DownloadsView extends StatelessWidget {
-  const DownloadsView({super.key,required this.downloads}); final BotDownload downloads;
+  const DownloadsView({super.key,required this.downloads});
+  final BotDownload downloads;
   Future<void> perform(BuildContext context,Future<void> Function() action) async {try{await action();}catch(e){if(context.mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e is TdException?e.message:"Couldn't open this file.")));}}
-  @override Widget build(BuildContext context)=>AnimatedBuilder(animation:downloads,builder:(context,_){final d=downloads;return ListView(padding:const EdgeInsets.all(20),children:[Text('Downloads',style:Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight:FontWeight.bold)),const SizedBox(height:20),Text('Active',style:Theme.of(context).textTheme.titleLarge),const SizedBox(height:8),
-    if(d.uuid==null) const Text('No active requests.') else ...[Text(d.title,style:Theme.of(context).textTheme.titleMedium),Text(d.status),for(final file in d.files.values) FileTile(file:file,downloads:d,perform:(action)=>perform(context,action)),Wrap(spacing:8,children:[OutlinedButton(onPressed:d.isSaving||d.pausing?null:()=>perform(context,d.paused?d.resume:d.pause),child:Text(d.paused?'Resume':'Pause')),TextButton(onPressed:d.isSaving||d.pausing?null:()=>perform(context,d.cancelRequest),child:const Text('Cancel'))]),if(d.status.startsWith('No file') || d.status.startsWith('Could not contact')) TextButton(onPressed:()=>openTelegram(context,'Mc_addonbot',d.uuid),child:const Text('Open Telegram'))],
-    const SizedBox(height:24),Text('Downloaded',style:Theme.of(context).textTheme.titleLarge),const SizedBox(height:8),if(d.history.isEmpty) const Text('Saved files will appear here.'),
-    for(final item in d.history) Card(child:ListTile(title:Text(item.name),subtitle:Text('${item.title}\n${item.category}'),isThreeLine:true,onTap:()=>perform(context,()=>d.open(item)),trailing:PopupMenuButton<String>(tooltip:'Manage download',onSelected:(value) async {
-      if(value=='open') {await perform(context,()=>d.open(item));return;}
-      if(value=='remove') {await perform(context,()=>d.remove(item));return;}
-      if(value=='share') {await shareItem(context,item.uuid,item.title,item.version);return;}
-      final delete=await showDialog<bool>(context:context,builder:(context)=>AlertDialog(title:const Text('Delete file?'),content:Text('Delete ${item.name} from your device?'),actions:[TextButton(onPressed:()=>Navigator.pop(context,false),child:const Text('Cancel')),FilledButton(onPressed:()=>Navigator.pop(context,true),child:const Text('Delete'))]));
-      if(delete==true && context.mounted) await perform(context,()=>d.remove(item,deleteFile:true));
-    },itemBuilder:(_)=>const [PopupMenuItem(value:'open',child:Text('Open')),PopupMenuItem(value:'share',child:Text('Share link')),PopupMenuItem(value:'remove',child:Text('Remove from history')),PopupMenuItem(value:'delete',child:Text('Delete file'))])))
-  ]);});
+  @override
+  Widget build(BuildContext context)=>AnimatedBuilder(animation:downloads,builder:(context,_){
+    final d=downloads;
+    final theme=Theme.of(context);
+    return Center(child:ConstrainedBox(constraints:const BoxConstraints(maxWidth:760),child:ListView(padding:const EdgeInsets.fromLTRB(20,20,20,28),children:[
+      Text('Downloads',style:theme.textTheme.headlineMedium?.copyWith(fontWeight:FontWeight.bold)),
+      const SizedBox(height:20),
+      Text('Active',style:theme.textTheme.titleLarge?.copyWith(fontWeight:FontWeight.bold)),
+      const SizedBox(height:8),
+      Card(child:Padding(padding:const EdgeInsets.all(16),child:d.uuid==null
+        ? const ListTile(contentPadding:EdgeInsets.zero,leading:Icon(Icons.download_outlined),title:Text('No active downloads'),subtitle:Text('Downloads will appear here.'))
+        : Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[
+          Row(crossAxisAlignment:CrossAxisAlignment.start,children:[Icon(Icons.downloading,color:theme.colorScheme.primary),const SizedBox(width:12),Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text(d.title.isEmpty?'Download':d.title,style:theme.textTheme.titleMedium?.copyWith(fontWeight:FontWeight.bold)),Text(d.status)]))]),
+          for(final file in d.files.values) FileTile(file:file,downloads:d,perform:(action)=>perform(context,action)),
+          const SizedBox(height:8),
+          Wrap(spacing:8,runSpacing:8,children:[OutlinedButton(onPressed:d.isSaving||d.pausing?null:()=>perform(context,d.paused?d.resume:d.pause),child:Text(d.paused?'Resume':'Pause')),TextButton(onPressed:d.isSaving||d.pausing?null:()=>perform(context,d.cancelRequest),child:const Text('Cancel'))]),
+          if(d.status.startsWith('No file') || d.status.startsWith('Could not contact')) Align(alignment:Alignment.centerLeft,child:TextButton(onPressed:()=>openTelegram(context,'Mc_addonbot',d.uuid),child:const Text('Open Telegram'))),
+        ]))),
+      const SizedBox(height:24),
+      Text('Downloaded',style:theme.textTheme.titleLarge?.copyWith(fontWeight:FontWeight.bold)),
+      const SizedBox(height:8),
+      if(d.history.isEmpty) const Card(child:ListTile(leading:Icon(Icons.folder_outlined),title:Text('No saved files yet'),subtitle:Text('Saved files will appear here.'))),
+      for(final item in d.history) Card(child:ListTile(
+        contentPadding:const EdgeInsets.fromLTRB(16,8,8,8),
+        leading:CircleAvatar(backgroundColor:theme.colorScheme.secondaryContainer,child:Icon(Icons.insert_drive_file_outlined,color:theme.colorScheme.onSecondaryContainer)),
+        title:Text(item.name),subtitle:Text([item.title,item.category].where((s)=>s.isNotEmpty).join(' · ')),
+        onTap:()=>perform(context,()=>d.open(item)),
+        trailing:PopupMenuButton<String>(tooltip:'Manage download',onSelected:(value) async {
+          if(value=='open') {await perform(context,()=>d.open(item));return;}
+          if(value=='remove') {await perform(context,()=>d.remove(item));return;}
+          if(value=='share') {await shareItem(context,item.uuid,item.title,item.version);return;}
+          final delete=await showDialog<bool>(context:context,builder:(context)=>AlertDialog(title:const Text('Delete file?'),content:Text('Delete ${item.name} from your device?'),actions:[TextButton(onPressed:()=>Navigator.pop(context,false),child:const Text('Cancel')),FilledButton(onPressed:()=>Navigator.pop(context,true),child:const Text('Delete'))]));
+          if(delete==true && context.mounted) await perform(context,()=>d.remove(item,deleteFile:true));
+        },itemBuilder:(_)=>const [PopupMenuItem(value:'open',child:Text('Open')),PopupMenuItem(value:'share',child:Text('Share link')),PopupMenuItem(value:'remove',child:Text('Remove from history')),PopupMenuItem(value:'delete',child:Text('Delete file'))]),
+      )),
+    ])));
+  });
 }
 
 class SettingsView extends StatelessWidget {
   const SettingsView({super.key,required this.telegram,required this.mode,required this.onTheme,required this.accent,required this.onAccent});
-  final TelegramClient telegram;final ThemeMode mode;final ValueChanged<ThemeMode> onTheme;final int accent;final ValueChanged<int> onAccent;
-  @override Widget build(BuildContext context)=>ListView(padding:const EdgeInsets.all(20),children:[Text('Settings',style:Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight:FontWeight.bold)),const SizedBox(height:16),Text('General',style:Theme.of(context).textTheme.titleMedium),Card(child:ListTile(leading:AnimatedBuilder(animation:telegram,builder:(_,__)=>ProfileAvatar(telegram:telegram,radius:22)),title:const Text('Telegram account'),subtitle:const Text('Profile and sign-in'),trailing:const Icon(Icons.chevron_right),onTap:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>AccountScreen(telegram:telegram))))),const SizedBox(height:16),Text('Appearance',style:Theme.of(context).textTheme.titleMedium),RadioListTile<ThemeMode>(title:const Text('Use device theme'),value:ThemeMode.system,groupValue:mode,onChanged:(v){if(v!=null)onTheme(v);}),RadioListTile<ThemeMode>(title:const Text('Light'),value:ThemeMode.light,groupValue:mode,onChanged:(v){if(v!=null)onTheme(v);}),RadioListTile<ThemeMode>(title:const Text('Dark'),value:ThemeMode.dark,groupValue:mode,onChanged:(v){if(v!=null)onTheme(v);}),Padding(padding:const EdgeInsets.symmetric(horizontal:16),child:Wrap(spacing:8,children:[for(final option in const [(0xff874f9e,'Purple'),(0xff426854,'Green'),(0xff536486,'Blue'),(0xff855b22,'Amber')]) ChoiceChip(label:Text(option.$2),selected:accent==option.$1,onSelected:(_)=>onAccent(option.$1))])),const Divider(),Text('Downloads',style:Theme.of(context).textTheme.titleMedium),const DownloadFolderTile(),Text('About & Support',style:Theme.of(context).textTheme.titleMedium),ListTile(leading:const Icon(Icons.campaign_outlined),title:const Text('Main channel'),onTap:()=>openTelegram(context,'Minecraft_addon_free_download')),ListTile(leading:const Icon(Icons.forum_outlined),title:const Text('Community support'),onTap:()=>openTelegram(context,'minecraft_group_chat_friends')),ListTile(leading:const Icon(Icons.support_agent_outlined),title:const Text('Contact support'),onTap:()=>openTelegram(context,'alchemisst')),const ListTile(leading:Icon(Icons.info_outline),title:Text('Alium by Marketplace Trader'),subtitle:Text('Independent Minecraft Bedrock community catalog.'))]);
+  final TelegramClient telegram;
+  final ThemeMode mode;
+  final ValueChanged<ThemeMode> onTheme;
+  final int accent;
+  final ValueChanged<int> onAccent;
+  @override
+  Widget build(BuildContext context) {
+    final theme=Theme.of(context);
+    Widget heading(String label)=>Padding(padding:const EdgeInsets.fromLTRB(4,20,4,8),child:Text(label,style:theme.textTheme.titleMedium?.copyWith(fontWeight:FontWeight.bold)));
+    return Center(child:ConstrainedBox(constraints:const BoxConstraints(maxWidth:760),child:ListView(padding:const EdgeInsets.fromLTRB(20,20,20,28),children:[
+      Text('Settings',style:theme.textTheme.headlineMedium?.copyWith(fontWeight:FontWeight.bold)),
+      heading('Account'),
+      Card(child:ListTile(leading:AnimatedBuilder(animation:telegram,builder:(_,__)=>ProfileAvatar(telegram:telegram,radius:22)),title:const Text('Telegram account'),subtitle:const Text('Profile and sign-in'),onTap:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>AccountScreen(telegram:telegram))))),
+      heading('Appearance'),
+      Card(child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[
+        RadioListTile<ThemeMode>(title:const Text('Use device theme'),value:ThemeMode.system,groupValue:mode,onChanged:(v){if(v!=null)onTheme(v);}),
+        RadioListTile<ThemeMode>(title:const Text('Light'),value:ThemeMode.light,groupValue:mode,onChanged:(v){if(v!=null)onTheme(v);}),
+        RadioListTile<ThemeMode>(title:const Text('Dark'),value:ThemeMode.dark,groupValue:mode,onChanged:(v){if(v!=null)onTheme(v);}),
+        Padding(padding:const EdgeInsets.fromLTRB(16,4,16,16),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text('Accent color',style:theme.textTheme.labelLarge),const SizedBox(height:8),Wrap(spacing:8,runSpacing:8,children:[for(final option in const [(0xff874f9e,'Purple'),(0xff426854,'Green'),(0xff536486,'Blue'),(0xff855b22,'Amber')]) ChoiceChip(label:Text(option.$2),selected:accent==option.$1,onSelected:(_)=>onAccent(option.$1))])])),
+      ])),
+      heading('Downloads & storage'),
+      const Card(child:DownloadFolderTile()),
+      heading('Support & community'),
+      Card(child:Column(children:[
+        ListTile(leading:const Icon(Icons.campaign_outlined),title:const Text('Main channel'),onTap:()=>openTelegram(context,'Minecraft_addon_free_download')),
+        ListTile(leading:const Icon(Icons.forum_outlined),title:const Text('Community support'),onTap:()=>openTelegram(context,'minecraft_group_chat_friends')),
+        ListTile(leading:const Icon(Icons.support_agent_outlined),title:const Text('Contact support'),onTap:()=>openTelegram(context,'alchemisst')),
+      ])),
+      heading('About'),
+      const Card(child:ListTile(leading:Icon(Icons.info_outline),title:Text('Alium by Marketplace Trader'),subtitle:Text('Independent Minecraft Bedrock community catalog.'))),
+    ])));
+  }
 }
+
 class DownloadFolderTile extends StatefulWidget {
   const DownloadFolderTile({super.key});
   @override State<DownloadFolderTile> createState()=>_DownloadFolderTileState();
@@ -198,28 +341,13 @@ class AccountScreen extends StatefulWidget {
   @override State<AccountScreen> createState()=>_AccountScreenState();
 }
 class _AccountScreenState extends State<AccountScreen> {
-  final apiId=TextEditingController(),apiHash=TextEditingController(),input=TextEditingController(); bool busy=false; Country? country; Timer? clock; final player=AudioPlayer(); bool audioBusy=false;
+  final apiId=TextEditingController(),apiHash=TextEditingController(),input=TextEditingController(); bool busy=false; Country? country; Timer? clock;
   @override void initState(){super.initState();clock=Timer.periodic(const Duration(seconds:1),(_){if(mounted && widget.telegram.state=='authorizationStateWaitCode')setState((){});});}
-  @override void dispose(){clock?.cancel();unawaited(player.dispose());apiId.dispose();apiHash.dispose();input.dispose();super.dispose();}
-  Future<void> toggleAudio(Map audio) async {
-    if(audioBusy)return;
-    if(player.playing){await player.pause();return;}
-    setState(()=>audioBusy=true);
-    try {
-      if(player.audioSource==null){
-        final file=audio['audio']; if(file is! Map || file['id'] is! num) throw StateError('Missing audio');
-        final result=await widget.telegram.query({'@type':'downloadFile','file_id':file['id'],'priority':8,'offset':0,'limit':0,'synchronous':true});
-        final local=result['local']; if(local is! Map || local['is_downloading_completed']!=true || local['path'] is! String) throw StateError('Unavailable');
-        await player.setFilePath(local['path'] as String);
-      }
-      unawaited(player.play());
-    } catch (_) {if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Audio unavailable.')));}
-    finally {if(mounted)setState(()=>audioBusy=false);}
-  }
+  @override void dispose(){clock?.cancel();apiId.dispose();apiHash.dispose();input.dispose();super.dispose();}
   Future<void> perform(Future<void> Function() work) async {setState(()=>busy=true);try{await work();input.clear();}catch(_){if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Check your details and retry.')));}finally{if(mounted)setState(()=>busy=false);}}
   @override Widget build(BuildContext context)=>Scaffold(appBar:AppBar(title:const Text('Telegram account')),body:AnimatedBuilder(animation:widget.telegram,builder:(context,_){
     final t=widget.telegram;final state=t.state; final name=[t.profile?['first_name'],t.profile?['last_name']].whereType<String>().where((s)=>s.isNotEmpty).join(' '); final usernames=t.profile?['usernames']; final active=usernames is Map ? usernames['active_usernames'] : null; final username=active is List && active.isNotEmpty ? active.first.toString() : ''; 
-    return ListView(padding:const EdgeInsets.all(20),children:[if(t.ready) ...[Center(child:ProfileAvatar(telegram:t,radius:42)),const SizedBox(height:12),Center(child:Text(name.isEmpty?'Telegram account':name,style:Theme.of(context).textTheme.headlineSmall)),if(username.isNotEmpty) Center(child:Text('@$username')),if(t.profile?['id']!=null) ListTile(title:const Text('Telegram ID'),subtitle:Text('${t.profile!['id']}'),trailing:const Icon(Icons.copy),onTap:() async {await Clipboard.setData(ClipboardData(text:'${t.profile!['id']}'));if(context.mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('ID copied.')));}),if(t.profileInfo?['bio'] is Map && (t.profileInfo!['bio']['text']??'').toString().isNotEmpty) ListTile(title:const Text('Bio'),subtitle:Text('${t.profileInfo!['bio']['text']}')),if(t.profileInfo?['first_profile_audio'] is Map) Builder(builder:(context){final audio=t.profileInfo!['first_profile_audio'] as Map;return Card(child:ListTile(title:Text((audio['title']??'Profile music').toString()),subtitle:Text((audio['performer']??'').toString()),trailing:StreamBuilder<bool>(stream:player.playingStream,initialData:player.playing,builder:(context,snapshot)=>IconButton(tooltip:snapshot.data==true?'Pause':'Play',onPressed:audioBusy?null:()=>toggleAudio(audio),icon:Icon(snapshot.data==true?Icons.pause:Icons.play_arrow)))));}),const SizedBox(height:24)] else ...[Text('Your Telegram account',style:Theme.of(context).textTheme.headlineSmall),const SizedBox(height:10)],
+    return ListView(padding:const EdgeInsets.all(20),children:[if(t.ready) ...[Center(child:ProfileAvatar(telegram:t,radius:42)),const SizedBox(height:12),Center(child:Text(name.isEmpty?'Telegram account':name,style:Theme.of(context).textTheme.headlineSmall)),if(username.isNotEmpty) Center(child:Text('@$username')),if(t.profile?['id']!=null) ListTile(title:const Text('Telegram ID'),subtitle:Text('${t.profile!['id']}'),trailing:const Icon(Icons.copy),onTap:() async {await Clipboard.setData(ClipboardData(text:'${t.profile!['id']}'));if(context.mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('ID copied.')));}),if(t.profileInfo?['bio'] is Map && (t.profileInfo!['bio']['text']??'').toString().isNotEmpty) ListTile(title:const Text('Bio'),subtitle:Text('${t.profileInfo!['bio']['text']}')),const SizedBox(height:24)] else ...[Text('Your Telegram account',style:Theme.of(context).textTheme.headlineSmall),const SizedBox(height:10)],
       if(!t.ready) ...[const Text('Downloads use your Telegram account.'),const Text('Never share your login code.'),const SizedBox(height:24)],
       if(state=='needsCredentials') ...[const Text('Developer configuration is missing.'),const SizedBox(height:12),TextField(controller:apiId,keyboardType:TextInputType.number,decoration:const InputDecoration(labelText:'Developer API ID',border:OutlineInputBorder())),const SizedBox(height:12),TextField(controller:apiHash,obscureText:true,enableSuggestions:false,autocorrect:false,decoration:const InputDecoration(labelText:'Developer API hash',border:OutlineInputBorder())),const SizedBox(height:12),FilledButton(onPressed:busy?null:()=>perform(() async {await t.start(apiId:int.tryParse(apiId.text),apiHash:apiHash.text.trim());apiHash.clear();}),child:const Text('Continue'))],
       if(state=='authorizationStateWaitPhoneNumber') ...[Card(child:Column(children:[ListTile(title:Text(country==null?'Choose country':'${country!.flagEmoji}  ${country!.name}'),trailing:const Icon(Icons.expand_more),onTap:()=>showCountryPicker(context:context,showPhoneCode:true,onSelect:(value)=>setState(()=>country=value))),const Divider(height:1),Padding(padding:const EdgeInsets.all(12),child:Row(children:[Text(country==null?'+':'+${country!.phoneCode}',style:Theme.of(context).textTheme.titleLarge),const SizedBox(width:12),Expanded(child:TextField(controller:input,keyboardType:TextInputType.phone,decoration:const InputDecoration(labelText:'Phone number',border:InputBorder.none)))]))])),const SizedBox(height:12),const Text('Use your Telegram phone number.'),const SizedBox(height:12),FilledButton(onPressed:busy?null:()=>perform(() async {final raw=input.text.trim().replaceAll(RegExp(r'[\s()\-]'),'');if(raw.isEmpty || (!raw.startsWith('+')&&country==null)) throw TdException('Select a country');final number=raw.startsWith('+')?raw:'+${country!.phoneCode}$raw';if(!RegExp(r'^\+[1-9]\d{5,14}$').hasMatch(number)) throw TdException('Invalid phone number');await t.phone(number);}),child:const Text('Continue'))],
@@ -227,7 +355,7 @@ class _AccountScreenState extends State<AccountScreen> {
       if(state=='authorizationStateWaitPassword') ...[Text(t.hint.isEmpty?'Enter your two-step password.':'Two-step verification hint: ${t.hint}'),const SizedBox(height:12),TextField(controller:input,obscureText:true,enableSuggestions:false,autocorrect:false,decoration:const InputDecoration(labelText:'Two-step verification password',border:OutlineInputBorder())),const SizedBox(height:12),FilledButton(onPressed:busy?null:()=>perform(()=>t.password(input.text)),child:const Text('Continue'))],
       if(state=='authorizationStateWaitEmailAddress') ...[const Text('Telegram requires your login email.'),const SizedBox(height:12),TextField(controller:input,keyboardType:TextInputType.emailAddress,decoration:const InputDecoration(labelText:'Email address',border:OutlineInputBorder())),const SizedBox(height:12),FilledButton(onPressed:busy?null:()=>perform(()=>t.email(input.text.trim())),child:const Text('Continue'))],
       if(state=='authorizationStateWaitEmailCode') ...[const Text('Enter your email login code.'),const SizedBox(height:12),TextField(controller:input,obscureText:true,keyboardType:TextInputType.number,decoration:const InputDecoration(labelText:'Email code',border:OutlineInputBorder())),const SizedBox(height:12),FilledButton(onPressed:busy?null:()=>perform(()=>t.emailCode(input.text.trim())),child:const Text('Verify code'))],
-      if(t.ready) ...[const Text('Signed in on this device.'),const SizedBox(height:12),OutlinedButton(onPressed:busy?null:() async {final yes=await showDialog<bool>(context:context,builder:(context)=>AlertDialog(title:const Text('Sign out?'),content:const Text('Saved downloads remain on device.'),actions:[TextButton(onPressed:()=>Navigator.pop(context,false),child:const Text('Cancel')),FilledButton(onPressed:()=>Navigator.pop(context,true),child:const Text('Sign out'))]));if(yes==true&&mounted)perform(() async {await player.stop();await t.logout();});},child:const Text('Sign out'))],
+      if(t.ready) ...[const Text('Signed in on this device.'),const SizedBox(height:12),OutlinedButton(onPressed:busy?null:() async {final yes=await showDialog<bool>(context:context,builder:(context)=>AlertDialog(title:const Text('Sign out?'),content:const Text('Saved downloads remain on device.'),actions:[TextButton(onPressed:()=>Navigator.pop(context,false),child:const Text('Cancel')),FilledButton(onPressed:()=>Navigator.pop(context,true),child:const Text('Sign out'))]));if(yes==true&&mounted)perform(() async {await t.logout();});},child:const Text('Sign out'))],
       if(state=='authorizationStateClosed') const Text('Reopen Alium to sign in.'),
       if(state=='failed') Text(t.failure??'Telegram is unavailable on this device.'),
       if(!['needsCredentials','authorizationStateWaitPhoneNumber','authorizationStateWaitCode','authorizationStateWaitPassword','authorizationStateWaitEmailAddress','authorizationStateWaitEmailCode','authorizationStateReady','authorizationStateClosed','failed'].contains(state)) const Text('Connecting to Telegram…'),
