@@ -1,0 +1,50 @@
+name: Build Flutter Android test APK
+on:
+  workflow_dispatch:
+  push:
+    branches: [arena/e09cf031-musical-funicular]
+    paths:
+      - 'android-app/**'
+      - '.github/workflows/build-flutter-android.yml'
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
+        with:
+          flutter-version: '3.35.7'
+          channel: stable
+          cache: true
+      - name: Generate Android project
+        working-directory: android-app
+        run: |
+          flutter create --platforms=android --project-name marketplace_trader --org net.greatsite .
+          python3 scripts/configure_android.py
+          python3 scripts/install_tdlib.py
+      - name: Install dependencies
+        working-directory: android-app
+        run: flutter pub get
+      - name: Analyze and test
+        working-directory: android-app
+        run: |
+          flutter analyze --no-fatal-infos
+          flutter test
+      - name: Build debug APK
+        working-directory: android-app
+        run: flutter build apk --debug
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: Marketplace-Trader-Android-test
+          path: android-app/build/app/outputs/flutter-apk/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
