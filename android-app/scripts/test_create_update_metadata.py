@@ -7,6 +7,14 @@ import create_update_metadata as updater
 
 
 class MetadataTests(unittest.TestCase):
+    def test_reads_apksigner_certificate_digest(self):
+        digest = 'ab' * 32
+        with patch.object(updater, 'command', return_value=f'Verifies\nSigner #1 certificate SHA-256 digest: {digest}\n'):
+            self.assertEqual(updater.certs(Path('example.apk')), [digest])
+        with patch.object(updater, 'command', return_value='Signer output missing'):
+            with self.assertRaises(ValueError):
+                updater.certs(Path('example.apk'))
+
     def test_builds_metadata_from_verified_apk(self):
         with tempfile.TemporaryDirectory() as directory:
             apk = Path(directory) / 'app-release.apk'

@@ -4,6 +4,7 @@ on:
     branches: [arena/e09cf031-musical-funicular]
     paths:
       - '.github/workflows/package-alium-update-assets.yml'
+      - 'android-app/scripts/create_update_metadata.py'
 permissions:
   contents: read
   actions: read
