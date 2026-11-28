@@ -19,27 +19,40 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-      - name: Download and verify signed builds
+      - name: Download new APK
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          set -eu
           gh run download 46138254428 --name Alium-Android-signed-release --dir "$RUNNER_TEMP/candidate"
-          gh run download 46125602276 --name Alium-Android-signed-release --dir "$RUNNER_TEMP/baseline"
           test -f "$RUNNER_TEMP/candidate/app-release.apk"
+      - name: Download previous APK
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh run download 46125602276 --name Alium-Android-signed-release --dir "$RUNNER_TEMP/baseline"
           test -f "$RUNNER_TEMP/baseline/app-release.apk"
+      - name: Check Android SDK tools
+        run: |
+          set -eu
           APKSIGNER="$(find "$ANDROID_HOME/build-tools" -name apksigner -type f | sort -V | tail -1)"
           test -n "$APKSIGNER"
+          test -x "$ANDROID_HOME/cmdline-tools/latest/bin/apkanalyzer"
+      - name: Verify APKs and create metadata
+        run: |
+          set -eu
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -name apksigner -type f | sort -V | tail -1)"
           export PATH="$(dirname "$APKSIGNER"):$ANDROID_HOME/cmdline-tools/latest/bin:$PATH"
-          command -v apkanalyzer
           mkdir -p "$RUNNER_TEMP/release-package"
           printf '%s\n' 'Catalog and detail layout updates.' 'Telegram download queue and storage browsing.' 'Manual and automatic update checks.' 'Android device testing is pending.' > "$RUNNER_TEMP/release-package/RELEASE_NOTES.txt"
-          python3 android-app/scripts/create_update_metadata.py \
+          if ! python3 android-app/scripts/create_update_metadata.py \
             --apk "$RUNNER_TEMP/candidate/app-release.apk" \
             --baseline "$RUNNER_TEMP/baseline/app-release.apk" \
             --tag v0.1.1 \
             --notes "$RUNNER_TEMP/release-package/RELEASE_NOTES.txt" \
-            --output "$RUNNER_TEMP/release-package/update.json"
+            --output "$RUNNER_TEMP/release-package/update.json" 2> "$RUNNER_TEMP/metadata-error"; then
+            echo "::error::$(cat "$RUNNER_TEMP/metadata-error")"
+            exit 1
+          fi
           cp "$RUNNER_TEMP/candidate/app-release.apk" "$RUNNER_TEMP/release-package/app-release.apk"
           cat > "$RUNNER_TEMP/release-package/README.md" <<'TEXT'
           # Alium releases
