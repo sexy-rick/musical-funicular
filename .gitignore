@@ -3,3 +3,7 @@ website/config.php
 telegram-catalog-bridge/website/config.php
 telegram-catalog-bridge/bot/lib/web_sync_private.js
 .env
+
+# Generated Python bytecode
+__pycache__/
+*.py[cod]
