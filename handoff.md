@@ -1,7 +1,7 @@
 ## Alium website download page (2026-11-28)
 
 - Added the home Download app button, `/alium.php` Android beta page, and detail-page Download text retaining the UUID Telegram link. `site-v14.css` / `catalog-v14.js` avoid stale caches; FAQ copy updated. APK link is pinned to v0.1.0 and requires a website update when releasing a newer version. Current ZIP `telegram-catalog-bridge/website-upload.zip`, v13 rollback `telegram-catalog-bridge/website-upload-v13-rollback.zip`; preserve live `config.php`. No Worker, bot, schema, hosting or release changes.
-- PHP WASM lint, jsdom and ZIP checks passed locally. Browser validation and live/device testing must be reported separately; the app APK installation and Telegram handoff are not proven by local mocks.
+- PHP WASM lint, jsdom and ZIP checks passed locally. GitHub Actions run 46167179009 passed responsive mocked Chromium tests, PHP and JS tests and ZIP integrity/content checks. Live-host and device testing remain outstanding; app APK installation and Telegram handoff are not proven by local mocks.
 
 # Handoff — Marketplace Trader
 
