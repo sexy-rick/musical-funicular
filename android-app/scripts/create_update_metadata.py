@@ -26,10 +26,10 @@ def manifest(apk, field):
 
 def certs(apk):
     output = command('apksigner', 'verify', '--verbose', '--print-certs', str(apk))
-    values = re.findall(r'Signer #\d+ certificate SHA-256 digest:\s*([0-9a-fA-F]{64})', output)
+    values = re.findall(r'^(?:Signer #\d+|V[1-4] Signer(?: #\d+)?):? certificate SHA-256 digest:\s*([0-9a-fA-F]{64})\s*$', output, re.MULTILINE)
     if not values:
         raise ValueError('Could not read the verified signing certificate')
-    return sorted(v.lower() for v in values)
+    return sorted({v.lower() for v in values})
 
 
 def create(apk, baseline, tag, notes):
