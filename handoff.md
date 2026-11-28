@@ -1,7 +1,7 @@
 ## Website Chrome install follow-up (2026-11-28)
 
 - Removed the home Install website button and changed Download app to Alium purple. Website installation instructions remain on the app page, including Chrome's Create shortcut option. Added a no-cache, no-fetch-interception compatibility service worker registered on normal website pages; browser security protections and private configuration remain unchanged. On Chrome this registration is not sufficient by itself to guarantee installation. InfinityFree's security challenge can affect the manifest, worker or Android WebAPK fetches; the reported device error is not yet diagnosed conclusively. Live Chrome and provider compatibility testing remains mandatory.
-- Website ZIP now v16; v15 rollback is `website-upload-v15-rollback.zip`. APK is not included; preserve host `config.php`. PHP, JS, jsdom and ZIP checks passed locally. Chromium installability and mocked-browser CI run are pending.
+- Website ZIP now v16; v15 rollback is `website-upload-v15-rollback.zip`. APK is not included; preserve host `config.php`. PHP, JS, jsdom and ZIP checks passed locally. GitHub Actions run 46168939729 passed mocked Chromium checks including local Chrome manifest/installability diagnostics, responsive UI, PHP/JS and ZIP validation. This does not verify the live provider or Android install prompt.
 
 ## Chrome website app install (2026-11-28)
 
