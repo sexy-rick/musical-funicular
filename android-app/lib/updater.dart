@@ -19,7 +19,7 @@ class UpdateInfo {
   factory UpdateInfo.fromJson(Map<String, dynamic> value) {
     final version=value['versionName'], code=value['versionCode'], sdk=value['minSdk'], size=value['size'], hash=value['sha256'], notes=value['notes'];
     final uri=Uri.tryParse('${value['apkUrl'] ?? ''}');
-    if (value['schema'] != 1 || value['packageId'] != 'alium.amberlyst.com' || version is! String || version.isEmpty || version.length > 50 || code is! int || code <= 0 || sdk is! int || sdk < 1 || size is! int || size <= 0 || size > 250*1024*1024 || hash is! String || !RegExp(r'^[a-f0-9]{64}$').hasMatch(hash) || notes is! String || notes.length > 8000 || uri == null || uri.scheme != 'https' || uri.host.toLowerCase() != 'github.com' || uri.userInfo.isNotEmpty || uri.hasPort || uri.hasQuery || uri.hasFragment || !uri.path.startsWith('/Alchemiisst/Alium/releases/download/') || !uri.path.endsWith('/app-release.apk')) {
+    if (value['schema'] != 1 || value['packageId'] != 'alium.amberlyst.com' || version is! String || version.isEmpty || version.length > 50 || code is! int || code <= 0 || sdk is! int || sdk < 1 || size is! int || size <= 0 || size > 250*1024*1024 || hash is! String || !RegExp(r'^[a-f0-9]{64}$').hasMatch(hash) || notes is! String || notes.length > 8000 || uri == null || uri.scheme != 'https' || uri.host.toLowerCase() != 'github.com' || uri.userInfo.isNotEmpty || uri.hasPort || uri.hasQuery || uri.hasFragment || uri.pathSegments.length!=6 || uri.pathSegments[0]!='Alchemiisst' || uri.pathSegments[1]!='Alium' || uri.pathSegments[2]!='releases' || uri.pathSegments[3]!='download' || !RegExp(r'^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$').hasMatch(uri.pathSegments[4]) || uri.pathSegments[5]!='app-release.apk') {
       throw const FormatException('Invalid update metadata');
     }
     return UpdateInfo(version:version, code:code, minSdk:sdk, size:size, hash:hash, url:uri.toString(), notes:notes);
@@ -136,8 +136,10 @@ class _UpdateDialogState extends State<UpdateDialog> {
     final current=UpdateClient(); transfer=current;
     try {
       final file=await current.download(widget.info,(value){if(mounted)setState(()=>progress=value);});
+      if(current.canceled) throw const HttpException('Canceled');
       // Android validates archive identity and installed signer before offering installation.
-      await updateChannel.invokeMethod<void>('verify',{'path':file.path,'versionCode':widget.info.code,'minSdk':widget.info.minSdk,'size':widget.info.size,'sha256':widget.info.hash});
+      await updateChannel.invokeMethod<void>('verify',{'path':file.path,'versionName':widget.info.version,'versionCode':widget.info.code,'minSdk':widget.info.minSdk,'size':widget.info.size,'sha256':widget.info.hash});
+      if(current.canceled) throw const HttpException('Canceled');
       if(mounted)setState(()=>downloaded=file);
     } catch (_) { if(mounted)setState(()=>error=current.canceled?'Download canceled.':'Download or verification failed.'); }
     finally { current.close(); if(mounted)setState(()=>busy=false); }
@@ -145,7 +147,7 @@ class _UpdateDialogState extends State<UpdateDialog> {
   Future<void> install() async {
     setState((){verifying=true;error=null;});
     try {
-      final result=await updateChannel.invokeMethod<String>('install',{'path':downloaded!.path,'versionCode':widget.info.code,'minSdk':widget.info.minSdk,'size':widget.info.size,'sha256':widget.info.hash});
+      final result=await updateChannel.invokeMethod<String>('install',{'path':downloaded!.path,'versionName':widget.info.version,'versionCode':widget.info.code,'minSdk':widget.info.minSdk,'size':widget.info.size,'sha256':widget.info.hash});
       if(mounted && result=='permission') setState(()=>error='Allow installs, then tap Install again.');
     } catch (_) { if(mounted)setState(()=>error='Update could not be installed.'); }
     finally {if(mounted)setState(()=>verifying=false);}

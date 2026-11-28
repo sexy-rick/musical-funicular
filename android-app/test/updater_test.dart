@@ -16,6 +16,8 @@ void main() {
       {'apkUrl':'https://evil.example/app-release.apk'},
       {'apkUrl':'https://github.com.evil.example/Alchemiisst/Alium/releases/download/x/app-release.apk'},
       {'apkUrl':'http://github.com/Alchemiisst/Alium/releases/download/x/app-release.apk'},
+      {'apkUrl':'https://github.com/Alchemiisst/Alium/releases/download/v1/extra/app-release.apk'},
+      {'apkUrl':'https://github.com/Alchemiisst/Alium/releases/download/%2e%2e/app-release.apk'},
       {'packageId':'other.app'}, {'sha256':'bad'}, {'versionCode':0},
       {'size':251*1024*1024}, {'schema':2}, {'notes':'x'*8001},
     ]) {

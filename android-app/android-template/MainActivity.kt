@@ -59,13 +59,14 @@ class MainActivity: FlutterActivity() {
                 }
                 "verify", "install" -> {
                     val path = call.argument<String>("path") ?: ""
+                    val name = call.argument<String>("versionName") ?: ""
                     val code = call.argument<Number>("versionCode")?.toLong() ?: -1
                     val minSdk = call.argument<Number>("minSdk")?.toInt() ?: -1
                     val size = call.argument<Number>("size")?.toLong() ?: -1
                     val hash = call.argument<String>("sha256") ?: ""
                     Thread {
                         try {
-                            val file = verifyUpdate(path, code, minSdk, size, hash)
+                            val file = verifyUpdate(path, name, code, minSdk, size, hash)
                             runOnUiThread {
                                 try {
                                     if (call.method == "verify") result.success(null)
@@ -375,7 +376,7 @@ class MainActivity: FlutterActivity() {
     }
 
     @Suppress("DEPRECATION")
-    private fun verifyUpdate(path: String, code: Long, minSdk: Int, expectedSize: Long, expectedHash: String): File {
+    private fun verifyUpdate(path: String, name: String, code: Long, minSdk: Int, expectedSize: Long, expectedHash: String): File {
         val file = File(path).canonicalFile
         val allowed = File(cacheDir, "alium_updates/update.apk").canonicalFile
         if (file != allowed || !file.isFile || expectedSize <= 0 || expectedSize > 250L * 1024 * 1024 || file.length() != expectedSize || !Regex("^[a-f0-9]{64}$").matches(expectedHash)) throw SecurityException()
@@ -390,7 +391,7 @@ class MainActivity: FlutterActivity() {
         val installed = packageManager.getPackageInfo(packageName, flags)
         val archive = packageManager.getPackageArchiveInfo(file.path, flags) ?: throw SecurityException()
         val installedSigners = signerDigests(installed)
-        if (archive.packageName != packageName || code != versionCode(archive) || code <= versionCode(installed) || installedSigners.isEmpty() || signerDigests(archive) != installedSigners) throw SecurityException()
+        if (archive.packageName != packageName || archive.versionName != name || code != versionCode(archive) || code <= versionCode(installed) || installedSigners.isEmpty() || signerDigests(archive) != installedSigners) throw SecurityException()
         if (minSdk < 1 || minSdk > Build.VERSION.SDK_INT) throw SecurityException()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && (archive.applicationInfo?.minSdkVersion ?: Int.MAX_VALUE) != minSdk) throw SecurityException()
         return file
