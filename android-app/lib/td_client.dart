@@ -135,6 +135,7 @@ class TelegramClient extends ChangeNotifier {
   Future<void> _loadProfile() async {
     try {
       final user = await query({'@type':'getMe'});
+      if (!ready || _closed) return;
       profile = user;
       final photo = user['profile_photo'];
       if (photo is Map && photo['small'] is Map && photo['small']['id'] is num) {
@@ -142,7 +143,7 @@ class TelegramClient extends ChangeNotifier {
         final local = file['local'];
         if (local is Map && local['is_downloading_completed'] == true) avatarPath = local['path']?.toString();
       }
-      if (!_closed) notifyListeners();
+      if (!_closed && ready) notifyListeners();
     } catch (_) { if (!_closed) notifyListeners(); }
   }
   Future<Map<String, dynamic>> query(Map<String, dynamic> value) async {
