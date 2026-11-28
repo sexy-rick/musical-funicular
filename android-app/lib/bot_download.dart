@@ -63,6 +63,7 @@ class BotDownload extends ChangeNotifier {
   final _discovered = <SavedDownload>[];
   final unavailable = <String>{};
   bool scanning = false;
+  int scanRevision=0;
   String? scanError;
   List<SavedDownload> get visibleFiles {
     final known=history.map((item)=>item.uri).toSet();
@@ -110,6 +111,7 @@ class BotDownload extends ChangeNotifier {
       final check=await _channel.invokeListMethod<String>('checkFiles',{'uris':history.map((e)=>e.uri).toList()});
       if (_disposed) return;
       _discovered..clear()..addAll(discovered);
+      scanRevision++;
       unavailable..clear()..addAll(check ?? const []);
     } catch (_) { if (!_disposed) scanError='Folder refresh unavailable. Check access and retry.'; }
     finally { scanning=false; _changed(); }
@@ -216,7 +218,7 @@ class BotDownload extends ChangeNotifier {
       else {
         history.insert(0, SavedDownload(name:file.name,title:savedTitle,category:savedCategory,uri:uri,uuid:savedUuid,version:savedVersion));
         _saved.add(id);
-        try { await _persist(); status='Downloaded'; }
+        try { await _persist(); status=files.keys.every(_saved.contains)?'Downloaded':files.keys.any((fileId)=>!_saved.contains(fileId) && selected.contains(fileId))?'Downloading…':'Download needs attention.'; }
         catch (_) { status='Downloaded; history could not be saved.'; }
       }
     } catch (_) { selected.remove(id); status='Could not save file.'; }

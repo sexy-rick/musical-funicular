@@ -39,7 +39,7 @@ class UpdateClient {
       final response=await request.close().timeout(const Duration(seconds:20));
       if ([301,302,303,307,308].contains(response.statusCode)) {
         final location=response.headers.value(HttpHeaders.locationHeader);
-        await response.drain<void>();
+        await response.drain<void>().timeout(const Duration(seconds:20));
         if (location==null) throw const FormatException('Missing redirect');
         uri=uri.resolve(location); continue;
       }

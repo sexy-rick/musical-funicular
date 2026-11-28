@@ -281,7 +281,7 @@ class DownloadsView extends StatelessWidget {
       if(d.visibleFiles.isEmpty) const Card(child:ListTile(leading:Icon(Icons.folder_outlined),title:Text('No saved files yet'),subtitle:Text('Saved files will appear here.'))),
       for(final item in d.visibleFiles) Card(child:ListTile(
         dense:true,contentPadding:const EdgeInsets.fromLTRB(12,0,8,0),
-        leading:PackIcon(item:item),
+        leading:PackIcon(key:ValueKey('${item.uri}-${d.scanRevision}'),item:item),
         title:Text(displayDownloadName(item.name),maxLines:2,overflow:TextOverflow.ellipsis),subtitle:Text(d.unavailable.contains(item.uri)?'File missing or inaccessible':item.category),
         onTap:()=>perform(context,()=>d.open(item)),
         trailing:PopupMenuButton<String>(tooltip:'Manage download',onSelected:(value) async {
