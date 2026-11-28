@@ -162,3 +162,7 @@ Implemented portions include login layout/resend, search, category/studio filter
 ### Signed-release retry
 
 Run 46121843039 passed Flutter analysis/tests but failed immediately during signing. Added safe input diagnostics in commit 2099782; run 46121976466 also passed analysis/tests and identified `ALIUM_KEYSTORE_BASE64` as invalid base64. No secret values were read, no artifact was produced, and no debug key was used. User must replace that GitHub Actions secret privately with the complete base64 encoding of their existing `alium-release.jks`, then rerun the signed workflow. Do not regenerate the key or ask for the encoded key/password in chat.
+
+### Signed Alium release built
+
+After the user corrected the private keystore secret, workflow_dispatch run 46122841320 at `edf5b2d` passed Flutter analysis/tests, built the release-mode APK with the configured release signing key, verified its signature using `apksigner verify`, and uploaded artifact `15254457045` (`Alium-Android-signed-release`), expires 2026-12-12 07:53 UTC. Download: https://github.com/sexy-rick/musical-funicular/actions/runs/46122841320/artifacts/15254457045. This is not a debug build. A different signing key from the earlier debug build prevents an in-place upgrade. Real-device Telegram, Minecraft import, download throughput, background and pause behavior remain unverified; bot response matching is heuristic, and verified website App Links/full expressive motion remain unfinished. No bot, Worker, website or database deployment was made.
