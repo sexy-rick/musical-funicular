@@ -14,7 +14,7 @@ const item={uuid:id,title:'A very long add-on name '.repeat(5),creator:'Maker',c
 // Simulate a returning visitor whose browser holds the old, unversioned assets.
 const oldCss=execFileSync('git',['show','e4d3499:telegram-catalog-bridge/website/assets/style.css']);
 const oldJs=execFileSync('git',['show','e4d3499:telegram-catalog-bridge/website/assets/catalog.js']);
-const server=http.createServer((req,res)=>{const path=new URL(req.url,'http://localhost').pathname; if(html[path] || prettyRoute.test(path)){res.setHeader('Content-Type','text/html');res.end(html[path] || html['/addon.php']);return;} if(path==='/assets/style.css'||path==='/assets/catalog.js'){res.setHeader('Content-Type',path.endsWith('.css')?'text/css':'application/javascript');res.end(path.endsWith('.css')?oldCss:oldJs);return;} if(['/assets/site-v14.css','/assets/catalog-v14.js','/assets/search-v10.js','/assets/filters-v11.js','/assets/theme-v10.js','/assets/icons-v10.svg','/assets/icons-v12.svg','/assets/brand-logo-v8.jpg','/assets/alium-icon.png'].includes(path)){res.setHeader('Content-Type',path.endsWith('.css')?'text/css':path.endsWith('.svg')?'image/svg+xml':path.endsWith('.jpg')?'image/jpeg':path.endsWith('.png')?'image/png':'application/javascript');res.end(readFileSync(join(root,path)));return;}res.statusCode=404;res.end();});
+const server=http.createServer((req,res)=>{const path=new URL(req.url,'http://localhost').pathname; if(html[path] || prettyRoute.test(path)){res.setHeader('Content-Type','text/html');res.end(html[path] || html['/addon.php']);return;} if(path==='/assets/style.css'||path==='/assets/catalog.js'){res.setHeader('Content-Type',path.endsWith('.css')?'text/css':'application/javascript');res.end(path.endsWith('.css')?oldCss:oldJs);return;} if(['/assets/site-v15.css','/assets/catalog-v14.js','/assets/search-v10.js','/assets/filters-v11.js','/assets/theme-v10.js','/assets/icons-v10.svg','/assets/icons-v12.svg','/assets/brand-logo-v8.jpg','/assets/alium-icon.png','/assets/install-v15.js'].includes(path)){res.setHeader('Content-Type',path.endsWith('.css')?'text/css':path.endsWith('.svg')?'image/svg+xml':path.endsWith('.jpg')?'image/jpeg':path.endsWith('.png')?'image/png':'application/javascript');res.end(readFileSync(join(root,path)));return;}res.statusCode=404;res.end();});
 (async()=>{
  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
  const browser=await chromium.launch({executablePath:await chrome.executablePath(),args:chrome.args.filter(arg=>arg!=='--disable-web-security'),headless:true});
@@ -53,8 +53,20 @@ const server=http.createServer((req,res)=>{const path=new URL(req.url,'http://lo
   await page.goto(`http://127.0.0.1:${server.address().port}/index.php`);
   assert.equal(await page.locator('.hero-actions a').nth(0).getAttribute('href'),'#catalog');
   assert.equal(await page.locator('.hero-actions a').nth(1).getAttribute('href'),'/alium.php');
+  assert.equal(await page.locator('.hero-actions a').nth(2).getAttribute('href'),'/alium.php#install-website');
+  await page.goto(appUrl);
+  assert.equal(await page.locator('#web-install-button').isHidden(),true);
+  await page.evaluate(()=>{const e=new Event('beforeinstallprompt',{cancelable:true}); e.prompt=async()=>{window.__promptCalled=true;}; e.userChoice=Promise.resolve({outcome:'dismissed'}); window.dispatchEvent(e);});
+  assert.equal(await page.locator('#web-install-button').isVisible(),true);
+  await page.locator('#web-install-button').click();
+  assert.equal(await page.evaluate(()=>window.__promptCalled),true);
+  assert.match(await page.locator('#web-install-status').innerText(),/dismissed/i);
+  assert.equal(await page.locator('#web-install-button').isHidden(),true);
+  await page.evaluate(()=>window.dispatchEvent(new Event('appinstalled')));
+  assert.match(await page.locator('#web-install-status').innerText(),/installed/i);
   const noJs=await browser.newContext({javaScriptEnabled:false,viewport:{width:320,height:800}}); const noJsPage=await noJs.newPage(); await noJsPage.goto(appUrl);
   assert.equal(await noJsPage.locator('.alium-download').getAttribute('href'),'https://github.com/Alchemiisst/Alium/releases/download/v0.1.0/app-release.apk');
+  assert.match(await noJsPage.locator('.web-install-instructions').innerText(),/Chrome on Android/); assert.equal(await noJsPage.locator('#web-install-button').isHidden(),true);
   assert.equal(await noJsPage.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false); await noJs.close();
   // Search without matches offers the real helper bot, while suggestions stay available.
   await page.route('**/addons?**',async route=>{const u=new URL(route.request().url()); if(u.searchParams.get('q')==='nothing123') return route.fulfill({status:200,headers:{'access-control-allow-origin':'*'},contentType:'application/json',body:JSON.stringify({ok:true,total:0,items:[]})}); return route.fallback();});
@@ -84,7 +96,7 @@ const server=http.createServer((req,res)=>{const path=new URL(req.url,'http://lo
   assert.match(await page.locator('.pack-details a').nth(1).getAttribute('href'),/cat=ADD-ON/); assert.match(await page.locator('.pack-details a').first().getAttribute('href'),/creator=Maker/); await page.locator('.pack-details a').first().click(); await page.waitForSelector('.card'); assert.match(page.url(),/creator=Maker/); assert.match(await page.locator('.filter-note').innerText(),/Studio: Maker/);
 
   assert.equal((await page.goto(`${base}/home?i=1`)).status(),200); await page.waitForSelector('.card');
-  assert.equal(await page.locator('.brand img').getAttribute('src'),'/assets/brand-logo-v8.jpg','/assets/alium-icon.png'); assert.equal(await page.locator('link[rel="manifest"]').count(),1);
+  assert.equal(await page.locator('.brand img').getAttribute('src'),'/assets/brand-logo-v8.jpg'); assert.equal(await page.locator('link[rel="manifest"]').count(),1);
   await page.setViewportSize({width:1440,height:800}); assert.equal(await page.locator('.hero-explore').isVisible(),true); assert.equal(await page.evaluate(()=>getComputedStyle(document.documentElement).getPropertyValue('--primary').trim()),'#c88828'); await page.setViewportSize({width:375,height:800});
 
   await page.evaluate(()=>{Object.defineProperty(navigator,'share',{value:undefined,configurable:true});});

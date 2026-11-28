@@ -29,5 +29,18 @@ pageHeader('Download Alium for Android');
       <a class="alium-help" href="/faq.php">Visit Help &amp; FAQ</a>
     </section>
   </div>
+  <section class="alium-panel web-install" id="install-website" aria-labelledby="web-install-title">
+    <p class="alium-eyebrow">CHROME WEBSITE APP</p>
+    <h2 id="web-install-title">Install the website</h2>
+    <p>Add Marketplace Trader to your device using Chrome. This installs the website, not the Alium Android app; add-on downloads still open Telegram.</p>
+    <button id="web-install-button" class="btn web-install-button" type="button" hidden>Install website app</button>
+    <p id="web-install-status" role="status" aria-live="polite"></p>
+    <div class="web-install-instructions">
+      <p><strong>Chrome on Android:</strong> Open Chrome’s menu, then select <strong>Install app</strong> or <strong>Add to Home screen</strong>.</p>
+      <p><strong>Chrome on computer:</strong> Use the install icon in the address bar, or look for an install option in Chrome’s menu. Menu names vary by version.</p>
+      <p>If an install option is not available, continue using the website in your browser. Internet access is required.</p>
+    </div>
+  </section>
+  <script src="/assets/install-v15.js" defer></script>
 </section>
 <?php pageFooter(); ?>

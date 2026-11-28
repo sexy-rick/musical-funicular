@@ -1,3 +1,8 @@
+## Chrome website app install (2026-11-28)
+
+- Added a separate Chrome website-install option and instructions, stable standalone manifest start URL, user-gesture install prompt when supported, and no-JavaScript fallback instructions. This installs Marketplace Trader website, not Alium APK, and does not add offline caching or bypass InfinityFree challenges. Chrome eligibility and host behavior require real live-device testing.
+- `website-upload.zip` is v15; `website-upload-v14-rollback.zip` is the prior site. Preserve host `config.php`. PHP WASM, jsdom and ZIP checks passed locally; browser CI results should be recorded separately.
+
 ## Alium website download page (2026-11-28)
 
 - Added the home Download app button, `/alium.php` Android beta page, and detail-page Download text retaining the UUID Telegram link. `site-v14.css` / `catalog-v14.js` avoid stale caches; FAQ copy updated. APK link is pinned to v0.1.0 and requires a website update when releasing a newer version. Current ZIP `telegram-catalog-bridge/website-upload.zip`, v13 rollback `telegram-catalog-bridge/website-upload-v13-rollback.zip`; preserve live `config.php`. No Worker, bot, schema, hosting or release changes.
