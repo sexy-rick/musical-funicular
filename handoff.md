@@ -1,7 +1,7 @@
 ## Chrome website app install (2026-11-28)
 
 - Added a separate Chrome website-install option and instructions, stable standalone manifest start URL, user-gesture install prompt when supported, and no-JavaScript fallback instructions. This installs Marketplace Trader website, not Alium APK, and does not add offline caching or bypass InfinityFree challenges. Chrome eligibility and host behavior require real live-device testing.
-- `website-upload.zip` is v15; `website-upload-v14-rollback.zip` is the prior site. Preserve host `config.php`. PHP WASM, jsdom and ZIP checks passed locally; browser CI results should be recorded separately.
+- `website-upload.zip` is v15; `website-upload-v14-rollback.zip` is the prior site. Preserve host `config.php`. PHP WASM, jsdom and ZIP checks passed locally; GitHub Actions run 46168249222 passed mocked Chromium and ZIP validation. Real Chrome installation on the live host remains unverified.
 
 ## Alium website download page (2026-11-28)
 
