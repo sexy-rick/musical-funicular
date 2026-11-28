@@ -149,7 +149,7 @@ class _UpdateDialogState extends State<UpdateDialog> {
     try {
       final result=await updateChannel.invokeMethod<String>('install',{'path':downloaded!.path,'versionName':widget.info.version,'versionCode':widget.info.code,'minSdk':widget.info.minSdk,'size':widget.info.size,'sha256':widget.info.hash});
       if(mounted && result=='permission') setState(()=>error='Allow installs, then tap Install again.');
-    } catch (_) { if(mounted)setState(()=>error='Update could not be installed.'); }
+    } catch (_) { if(mounted)setState((){downloaded=null;error='Update could not be installed. Download again.';}); }
     finally {if(mounted)setState(()=>verifying=false);}
   }
   Future<void> remind() async {

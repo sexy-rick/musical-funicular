@@ -1,4 +1,6 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:marketplace_trader/updater.dart';
 
 void main() {
@@ -25,4 +27,22 @@ void main() {
       expect(()=>UpdateInfo.fromJson(value),throwsFormatException);
     }
   });
+  testWidgets('update dialog shows real versions and notes before install', (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    final info=UpdateInfo.fromJson(metadata());
+    final client=UpdateClient();
+    await tester.pumpWidget(MaterialApp(home:Scaffold(body:Builder(builder:(context)=>TextButton(onPressed:()=>showDialog<void>(context:context,builder:(_)=>UpdateDialog(info:info,installed:'0.1.1',client:client)),child:const Text('Check'))))));
+    await tester.tap(find.text('Check')); await tester.pumpAndSettle();
+    expect(find.text('New version: 0.1.2'),findsOneWidget);
+    expect(find.text('Installed version: 0.1.1'),findsOneWidget);
+    expect(find.text('Real notes'),findsOneWidget);
+    expect(find.text('Download update'),findsOneWidget);
+    expect(find.text('Install'),findsNothing);
+    await tester.tap(find.text('Remind tomorrow')); await tester.pumpAndSettle();
+    final prefs=await SharedPreferences.getInstance();
+    expect(prefs.getInt('alium_update_remind_code'),3);
+    expect(prefs.getInt('alium_update_remind_until'),greaterThan(DateTime.now().millisecondsSinceEpoch));
+    client.close();
+  });
+
 }
