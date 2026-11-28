@@ -1,4 +1,4 @@
-name: Build Alium Android test APK
+name: Build Alium signed Android release
 on:
   workflow_dispatch:
   push:
@@ -52,23 +52,38 @@ jobs:
             while IFS= read -r line; do echo "::error::$line"; done < /tmp/flutter-test.log
             exit "$code"
           fi
-      - name: Build debug APK
+      - name: Build signed release APK
         working-directory: android-app
         env:
-          TELEGRAM_API_ID: ${{ secrets.ALIUM_TELEGRAM_API_ID }}
-          TELEGRAM_API_HASH: ${{ secrets.ALIUM_TELEGRAM_API_HASH }}
+          TELEGRAM_API_ID: ${{ secrets.TGID }}
+          TELEGRAM_API_HASH: ${{ secrets.TGHASH }}
+          ALIUM_KEYSTORE_BASE64: ${{ secrets.ALIUM_KEYSTORE_BASE64 }}
+          ALIUM_KEYSTORE_PASSWORD: ${{ secrets.ALIUM_KEYSTORE_PASSWORD }}
+          ALIUM_KEY_ALIAS: ${{ secrets.ALIUM_KEY_ALIAS }}
+          ALIUM_KEY_PASSWORD: ${{ secrets.ALIUM_KEY_PASSWORD }}
         run: |
-          if [ -n "$TELEGRAM_API_ID" ] && [ -n "$TELEGRAM_API_HASH" ]; then
-            flutter build apk --debug --dart-define="TELEGRAM_API_ID=$TELEGRAM_API_ID" --dart-define="TELEGRAM_API_HASH=$TELEGRAM_API_HASH"
-          elif [ -z "$TELEGRAM_API_ID" ] && [ -z "$TELEGRAM_API_HASH" ]; then
-            flutter build apk --debug
-          else
-            echo '::error::Both Telegram application values must be configured together.'
+          set -eu
+          if [ -z "$ALIUM_KEYSTORE_BASE64" ] || [ -z "$ALIUM_KEYSTORE_PASSWORD" ] || [ -z "$ALIUM_KEY_ALIAS" ] || [ -z "$ALIUM_KEY_PASSWORD" ]; then
+            echo '::error::Release signing secrets are required; no debug signing fallback is permitted.'
             exit 1
           fi
+          if { [ -n "$TELEGRAM_API_ID" ] && [ -z "$TELEGRAM_API_HASH" ]; } || { [ -z "$TELEGRAM_API_ID" ] && [ -n "$TELEGRAM_API_HASH" ]; }; then
+            echo '::error::Both TGID and TGHASH must be configured together.'
+            exit 1
+          fi
+          export ALIUM_KEYSTORE_PATH="$RUNNER_TEMP/alium-release.jks"
+          trap 'rm -f "$ALIUM_KEYSTORE_PATH"' EXIT
+          printf '%s' "$ALIUM_KEYSTORE_BASE64" | base64 --decode > "$ALIUM_KEYSTORE_PATH"
+          if [ -n "$TELEGRAM_API_ID" ]; then
+            flutter build apk --release --dart-define="TELEGRAM_API_ID=$TELEGRAM_API_ID" --dart-define="TELEGRAM_API_HASH=$TELEGRAM_API_HASH"
+          else
+            flutter build apk --release
+          fi
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -name apksigner -type f | sort -V | tail -1)"
+          "$APKSIGNER" verify --verbose --print-certs build/app/outputs/flutter-apk/app-release.apk
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: Alium-Android-test
-          path: android-app/build/app/outputs/flutter-apk/app-debug.apk
+          name: Alium-Android-signed-release
+          path: android-app/build/app/outputs/flutter-apk/app-release.apk
           if-no-files-found: error
           retention-days: 14

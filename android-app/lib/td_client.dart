@@ -42,6 +42,8 @@ class TelegramClient extends ChangeNotifier {
   final _events = StreamController<Map<String, dynamic>>.broadcast();
   String state = 'notStarted';
   String hint = '';
+  DateTime? resendAt;
+  bool canResendCode = false;
   String? failure;
   int? _apiId;
   String? _apiHash;
@@ -122,6 +124,11 @@ class TelegramClient extends ChangeNotifier {
         if (auth is Map<String, dynamic>) {
           state = (auth['@type'] ?? '').toString();
           hint = (auth['password_hint'] ?? '').toString();
+          final info = auth['code_info'];
+          if (state == 'authorizationStateWaitCode' && info is Map) {
+            canResendCode = info['next_type'] != null;
+            resendAt = DateTime.now().add(Duration(seconds:(info['timeout'] as num?)?.toInt() ?? 0));
+          } else { canResendCode = false; resendAt = null; }
           if (state == 'authorizationStateReady') unawaited(_loadProfile());
           if (state == 'authorizationStateClosed' || state == 'authorizationStateLoggingOut') { profile = null; avatarPath = null; }
           notifyListeners();
@@ -157,6 +164,7 @@ class TelegramClient extends ChangeNotifier {
     finally { _pending.remove(id); }
   }
   Future<void> phone(String number) async { await query({'@type':'setAuthenticationPhoneNumber','phone_number':number,'settings':null}); }
+  Future<void> resendCode() async { await query({'@type':'resendAuthenticationCode','reason':{'@type':'resendCodeReasonUserRequest'}}); }
   Future<void> code(String code) async { await query({'@type':'checkAuthenticationCode','code':code}); }
   Future<void> password(String password) async { await query({'@type':'checkAuthenticationPassword','password':password}); }
   Future<void> email(String email) async { await query({'@type':'setAuthenticationEmailAddress','email_address':email}); }

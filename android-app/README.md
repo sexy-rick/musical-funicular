@@ -1,21 +1,28 @@
-# Alium by Marketplace Trader — Android test build
+# Alium by Marketplace Trader
 
-Flutter Material 3 catalog app using the existing public catalog and the user's own TDLib Telegram session. It does not contain a shared Telegram account or a bot token. Android package ID is `alium.amberlyst.com`, so this installs separately from the earlier Marketplace Trader prototype and does not transfer its private session or preferences.
+Flutter Material 3 catalog app, application ID `alium.amberlyst.com`. Each user signs in to their own Telegram account. No shared Telegram session or bot token is embedded.
 
-## Authentication and privacy
+## CI Telegram configuration
 
-A developer obtains their own Telegram application API ID and hash through my.telegram.org and configures both as Dart defines `TELEGRAM_API_ID` and `TELEGRAM_API_HASH`; end users sign in with their own phone, code and optional two-step password. For the CI test build, optionally configure GitHub Actions secrets `ALIUM_TELEGRAM_API_ID` and `ALIUM_TELEGRAM_API_HASH` privately in repository settings, not in chat. With neither configured the debug APK exposes an explicitly labeled developer-only setup screen, so browsing still works. CI rejects half-configured values. Values embedded in an APK are extractable; CI secrets do not make the distributed app a safe secret store. Do not use someone else's application credentials. The session is stored locally with the TDLib database key held in Android secure storage; backup is disabled. User-initiated downloads send a request to the bot as that user.
+Privately configure GitHub Actions repository secrets `TGID` and `TGHASH` as the developer's Telegram application API ID and hash, respectively. Do not put them in chat. Both values must be present together; if neither exists the app provides a developer setup screen. The values compiled into an APK are extractable even if stored as Actions secrets. Do not use another developer's credentials. Authentication codes and passwords are entered only on the user's device; TDLib session data is local, its database key is stored using secure storage, and Android backup is disabled.
 
-## Download limitations
+## Signed release setup
 
-The current bot doesn't guarantee reply/request correlation. The download button requests in place, but a user must verify and select each candidate document. Replies may be unrelated or promotional. This client doesn't handle bot photos/videos as downloadable documents. Channel join gates are not bypassed; user-initiated native Telegram links have an optional browser fallback. One bot request can be active at a time. Android 10+ saves selected files to `Downloads/Alium/<category>` through MediaStore; Android 9 and below asks for a location with the system picker. The Downloads screen retains completed file URIs and supports opening, deleting and removing from history. Active requests and TDLib transfers are not guaranteed to survive closing, process death, reboot or background restrictions. Do not claim a safe persistent queue or background downloads without further implementation and real-device testing.
+This workflow produces a **release-mode APK signed with your own persistent release key**, never a debug-signing fallback. Configure these GitHub Actions secrets privately in repository settings:
 
-## Metadata
+- `ALIUM_KEYSTORE_BASE64`: base64 of the release keystore file.
+- `ALIUM_KEYSTORE_PASSWORD`: keystore password.
+- `ALIUM_KEY_ALIAS`: release key alias.
+- `ALIUM_KEY_PASSWORD`: key password.
 
-The existing catalog is retained and its available file size is shown. Toolcoin v1.6.2 source has been identified, but its metadata service authorization, license and real-world responses have not been verified. No Toolcoin code, secrets, download/decryption functionality or unverified metadata was integrated. Missing values are not invented.
+Keep a secure independent backup of the keystore and passwords. Losing the release key can prevent app updates. Use the **same signing key** as a previously installed app to update it while retaining its data. The previous test APK was debug-signed; a release signed with a different key cannot update it. Uninstalling the existing app may remove its private Telegram session/history, so back up anything important and sign in again as needed. The workflow checks that all signing values exist, builds `app-release.apk`, verifies its signature with `apksigner`, and removes the temporary keystore. No keystore is committed. Review the signing certificate fingerprint before distribution.
+
+## Downloads and import: important limitations
+
+One Download action contacts the bot and immediately starts each matching document response at TDLib priority 32 (the highest queue priority). That prioritizes downloads within TDLib; it does **not** guarantee faster network throughput. Pause requests TDLib cancellation and resume restarts it; byte preservation and process-death behavior are not verified. Saving copies the completed file to MediaStore or a user-selected SAF folder; older Android uses a per-file picker when no folder is selected. Transfers are not guaranteed to continue in the background or after process death. Multiple document replies are accepted until a 15-second quiet period after all saves; the bot supplies no verified end marker. The existing heuristic matches sender/chat/message ordering, not a guaranteed request ID, so late or unrelated bot replies could be associated with the wrong request or be missed. Test against the live bot; do not describe this as verified correlation. No bot or schema was changed.
+
+For `.mcpack`, `.mcworld`, `.mcaddon` and `.mctemplate`, Alium sends a package-targeted `ACTION_VIEW` with a read grant to the official Minecraft application, without automatically falling back to another app. Android activity launch is not import confirmation; current Minecraft builds and URI/MIME compatibility have **not been tested on a real device**. The game itself reports import results. Other file types use Android's normal open behavior. Selected SAF providers may revoke access or fail; old files remain in their original locations.
 
 ## Build and testing
 
-The GitHub Actions workflow generates the Flutter Android project, runs analysis and tests, installs checksum-pinned third-party TDLib binaries and uploads a **debug-signed test APK** retained for 14 days. Inspect `scripts/tdjson-manifest.json` and audit the native binaries and third-party licensing before distribution. A production release requires signing, privacy, security, Telegram terms and content-rights review. Configure optional developer values through `--dart-define` for local builds; avoid recording them in shell history or source. No Worker, website, bot or database deployment is performed.
-
-This build has not been independently tested with live Telegram, file bot, actual Android MediaStore, country-specific phone formatting, session-list branding or on a real device. Telegram clients choose their own session icons; an Alium launcher icon does not automatically appear in another app's session list.
+The workflow generates the Android project, installs checksum-pinned TDLib binaries, runs Flutter analysis/tests, builds a signed release APK and uploads it for 14 days. Inspect `scripts/tdjson-manifest.json` and audit native binaries and third-party licenses before distribution. Production distribution requires privacy, security, Telegram terms and content-rights review. No Worker, website, bot, database, or migration deployment is performed. Real Android/Telegram/Minecraft device tests remain required.
