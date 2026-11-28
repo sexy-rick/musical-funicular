@@ -137,7 +137,7 @@ class CatalogCard extends StatelessWidget {
         child:label,
       );
     }
-    Widget actions() => Row(mainAxisSize:MainAxisSize.min,children:[
+    Widget actions() => Wrap(alignment:WrapAlignment.end,children:[
       if(onShare!=null) IconButton(tooltip:'Share',onPressed:onShare,icon:const Icon(Icons.share_outlined)),
       if(onDownload!=null) FilledButton.icon(onPressed:onDownload,icon:const Icon(Icons.download),label:const Text('Download')),
     ]);

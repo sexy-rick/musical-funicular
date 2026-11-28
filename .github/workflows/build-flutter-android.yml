@@ -45,7 +45,7 @@ jobs:
             while IFS= read -r line; do echo "::error::$line"; done < /tmp/flutter-analyze.log
             exit "$code"
           fi
-          flutter test > /tmp/flutter-test.log 2>&1
+          flutter test --reporter expanded > /tmp/flutter-test.log 2>&1
           code=$?
           cat /tmp/flutter-test.log
           if [ "$code" -ne 0 ]; then
