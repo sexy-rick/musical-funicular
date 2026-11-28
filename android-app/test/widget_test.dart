@@ -179,8 +179,10 @@ void main() {
     expect(api.pages,[1]);
     await tester.scrollUntilVisible(find.text('A catalog item'),300,scrollable:find.byType(Scrollable).first);
     expect(find.text('A catalog item'),findsOneWidget);
+    await tester.ensureVisible(find.text('A catalog item')); await tester.pumpAndSettle();
     await tester.tap(find.text('A catalog item')); await tester.pumpAndSettle();
-    expect(find.text('A catalog item'),findsWidgets);
+    expect(tester.state<NavigatorState>(find.byType(Navigator)).canPop(),isTrue);
+    expect(find.descendant(of:find.byType(AppBar),matching:find.text('A catalog item')),findsOneWidget);
     tester.state<NavigatorState>(find.byType(Navigator)).pop(); await tester.pumpAndSettle();
     expect(api.pages,[1]);
     await tester.scrollUntilVisible(find.text('Next'),300,scrollable:find.byType(Scrollable).first);
