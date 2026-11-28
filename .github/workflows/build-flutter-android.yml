@@ -92,7 +92,22 @@ jobs:
           fi
           export ALIUM_KEYSTORE_PATH="$RUNNER_TEMP/alium-release.jks"
           trap 'rm -f "$ALIUM_KEYSTORE_PATH"' EXIT
-          printf '%s' "$ALIUM_KEYSTORE_BASE64" | base64 --decode > "$ALIUM_KEYSTORE_PATH"
+          if ! printf '%s' "$ALIUM_KEYSTORE_BASE64" | tr -d '[:space:]' | base64 --decode > "$ALIUM_KEYSTORE_PATH" 2>/dev/null; then
+            echo '::error::ALIUM_KEYSTORE_BASE64 is not valid base64. Copy the complete output without the prompt.'
+            exit 1
+          fi
+          if [ ! -s "$ALIUM_KEYSTORE_PATH" ]; then
+            echo '::error::The decoded release keystore is empty.'
+            exit 1
+          fi
+          if ! keytool -list -keystore "$ALIUM_KEYSTORE_PATH" -storepass:env ALIUM_KEYSTORE_PASSWORD >/dev/null 2>&1; then
+            echo '::error::Could not open the keystore. Check the complete base64 value and keystore password.'
+            exit 1
+          fi
+          if ! keytool -list -keystore "$ALIUM_KEYSTORE_PATH" -storepass:env ALIUM_KEYSTORE_PASSWORD -alias "$ALIUM_KEY_ALIAS" >/dev/null 2>&1; then
+            echo '::error::The key alias was not found in the keystore.'
+            exit 1
+          fi
           if [ -n "$TELEGRAM_API_ID" ]; then
             flutter build apk --release --dart-define="TELEGRAM_API_ID=$TELEGRAM_API_ID" --dart-define="TELEGRAM_API_HASH=$TELEGRAM_API_HASH"
           else
