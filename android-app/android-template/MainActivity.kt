@@ -3,6 +3,7 @@ package net.greatsite.marketplace_trader
 import android.app.Activity
 import android.content.ClipData
 import android.content.ContentValues
+import android.content.ContentUris
 import android.content.Intent
 import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
@@ -13,11 +14,21 @@ import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
 import android.provider.DocumentsContract
+import android.provider.OpenableColumns
+import android.graphics.BitmapFactory
+import android.os.SystemClock
 import android.webkit.MimeTypeMap
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import java.io.File
+import java.io.ByteArrayOutputStream
+import java.io.FilterInputStream
+import java.io.InputStream
+import java.util.zip.ZipInputStream
+import java.util.concurrent.ArrayBlockingQueue
+import java.util.concurrent.ThreadPoolExecutor
+import java.util.concurrent.TimeUnit
 import java.text.Normalizer
 import java.util.Locale
 import java.security.MessageDigest
@@ -27,6 +38,10 @@ class MainActivity: FlutterActivity() {
     private var pending: MethodChannel.Result? = null
     private var source: File? = null
     private var folderPending: MethodChannel.Result? = null
+    private val iconExecutor = ThreadPoolExecutor(1, 1, 0L, TimeUnit.SECONDS, ArrayBlockingQueue(32))
+    private val iconCache = object : LinkedHashMap<String, ByteArray>(32, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, ByteArray>?): Boolean = size > 32
+    }
     private val storagePrefs by lazy { getSharedPreferences("alium_storage", MODE_PRIVATE) }
     override fun configureFlutterEngine(engine: FlutterEngine) {
         super.configureFlutterEngine(engine)
@@ -45,11 +60,12 @@ class MainActivity: FlutterActivity() {
                 "verify", "install" -> {
                     val path = call.argument<String>("path") ?: ""
                     val code = call.argument<Number>("versionCode")?.toLong() ?: -1
+                    val minSdk = call.argument<Number>("minSdk")?.toInt() ?: -1
                     val size = call.argument<Number>("size")?.toLong() ?: -1
                     val hash = call.argument<String>("sha256") ?: ""
                     Thread {
                         try {
-                            val file = verifyUpdate(path, code, size, hash)
+                            val file = verifyUpdate(path, code, minSdk, size, hash)
                             runOnUiThread {
                                 try {
                                     if (call.method == "verify") result.success(null)
@@ -94,6 +110,34 @@ class MainActivity: FlutterActivity() {
                         startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply { type = "text/plain"; putExtra(Intent.EXTRA_TEXT, "$title\n$link") }, "Share"))
                         result.success(null)
                     } catch (_: Exception) { result.error("share_failed", "Could not share link", null) }
+                }
+                "icon" -> {
+                    val value=call.argument<String>("uri") ?: ""
+                    val name=call.argument<String>("name") ?: ""
+                    try {
+                        iconExecutor.execute {
+                            val bytes=try { packIcon(Uri.parse(value), name) } catch (_: Exception) { null } catch (_: OutOfMemoryError) { null }
+                            runOnUiThread { result.success(bytes) }
+                        }
+                    } catch (_: Exception) { result.success(null) }
+                }
+                "scan" -> {
+                    Thread {
+                        try {
+                            val records = scanAliumFiles()
+                            runOnUiThread { result.success(records) }
+                        } catch (_: Exception) { runOnUiThread { result.error("scan_failed", "Folder unavailable. Check access and retry.", null) } }
+                    }.start()
+                }
+                "checkFiles" -> {
+                    val uris = call.argument<List<String>>("uris") ?: emptyList()
+                    if (uris.size > 2000) { result.error("too_many", "Too many files to check", null); return@setMethodCallHandler }
+                    Thread {
+                        val unavailable = uris.filter { value ->
+                            try { val uri = Uri.parse(value); if (uri.scheme != "content") true else contentResolver.openAssetFileDescriptor(uri, "r")?.use { false } ?: true } catch (_: Exception) { true }
+                        }
+                        runOnUiThread { result.success(unavailable) }
+                    }.start()
                 }
                 "getFolder" -> result.success(storagePrefs.getString("tree", null))
                 "resetFolder" -> { storagePrefs.edit().remove("tree").apply(); result.success(null) }
@@ -201,11 +245,124 @@ class MainActivity: FlutterActivity() {
             }
         }
     }
+    override fun onDestroy() {
+        iconExecutor.shutdownNow()
+        super.onDestroy()
+    }
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
         intent.dataString?.let { linkChannel?.invokeMethod("link", it) }
     }
+    private class BoundedInput(input: InputStream, private val limit: Long): FilterInputStream(input) {
+        private var count=0L
+        override fun read(): Int { val value=super.read(); if (value>=0 && ++count>limit) throw IllegalStateException(); return value }
+        override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
+            val n=super.read(buffer,offset,length)
+            if (n>0) { count+=n; if (count>limit) throw IllegalStateException() }
+            return n
+        }
+    }
+    private fun packIcon(uri: Uri, name: String): ByteArray? {
+        if (uri.scheme != "content" || name.substringAfterLast('.', "").lowercase(Locale.ROOT) !in setOf("mcpack", "mcaddon", "mcworld", "mctemplate", "zip")) return null
+        // Cache only if the provider supplies both revision and size.
+        var size: Long?=null
+        var modified: Long?=null
+        try {
+            contentResolver.query(uri, arrayOf(OpenableColumns.SIZE, DocumentsContract.Document.COLUMN_LAST_MODIFIED), null, null, null)?.use { cursor ->
+                if (cursor.moveToFirst()) { if (!cursor.isNull(0)) size=cursor.getLong(0); if (!cursor.isNull(1)) modified=cursor.getLong(1) }
+            }
+        } catch (_: Exception) { /* No reliable revision: don't cache. */ }
+        val key=if (size!=null && modified!=null) "$uri:$size:$modified" else null
+        if (key!=null) synchronized(iconCache) { iconCache[key]?.let { return it } }
+        val deadline=SystemClock.elapsedRealtime()+2000
+        var expanded=0L; var count=0
+        var bestName: String?=null; var best: ByteArray?=null
+        val input=contentResolver.openInputStream(uri) ?: return null
+        ZipInputStream(BoundedInput(input,32L*1024*1024)).use { zip ->
+            while (count++ < 128 && SystemClock.elapsedRealtime() < deadline) {
+                val entry=zip.nextEntry ?: break
+                val path=entry.name
+                val parts=path.split('/')
+                val safe=!path.startsWith('/') && !path.contains('\\') && parts.none { it==".." || it=="." } && !path.contains(':')
+                val candidate=safe && !entry.isDirectory && parts.lastOrNull()=="pack_icon.png" && parts.size<=4 && (bestName==null || path.length<bestName!!.length || (path.length==bestName!!.length && path<bestName!!))
+                val output=if (candidate) ByteArrayOutputStream() else null
+                val buffer=ByteArray(8192)
+                while (true) {
+                    if (SystemClock.elapsedRealtime() >= deadline) throw IllegalStateException()
+                    val n=zip.read(buffer); if(n<0) break
+                    expanded+=n; if (expanded>8L*1024*1024) throw IllegalStateException()
+                    if (output!=null) { if (output.size()+n>512*1024) throw IllegalStateException(); output.write(buffer,0,n) }
+                }
+                if (output!=null) { bestName=path; best=output.toByteArray(); if (path=="pack_icon.png") break }
+            }
+        }
+        val bytes=best ?: return null
+        val options=BitmapFactory.Options().apply { inJustDecodeBounds=true }
+        BitmapFactory.decodeByteArray(bytes,0,bytes.size,options)
+        if (options.outMimeType!="image/png" || options.outWidth<=0 || options.outHeight<=0 || options.outWidth>1024 || options.outHeight>1024 || options.outWidth.toLong()*options.outHeight>1048576) return null
+        if (key!=null) synchronized(iconCache) { iconCache[key]=bytes }
+        return bytes
+    }
+
+    private fun scanAliumFiles(): List<Map<String, String>> {
+        val found = LinkedHashMap<String, Map<String, String>>()
+        val folders = setOf("Add-ons", "Texture packs", "Skin packs", "Worlds", "Mash-up packs", "Templates", "Applications", "Other")
+        val extensions = setOf("mcpack", "mcaddon", "mcworld", "mctemplate", "zip", "apk")
+        fun add(uri: Uri, name: String, category: String) {
+            if (found.size >= 2000 || name.substringAfterLast('.', "").lowercase(Locale.ROOT) !in extensions) return
+            val value=uri.toString()
+            found[value] = mapOf("uri" to value, "name" to name, "category" to category, "title" to "", "uuid" to "", "version" to "")
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val collection = MediaStore.Downloads.EXTERNAL_CONTENT_URI
+            val columns = arrayOf(MediaStore.Downloads._ID, MediaStore.Downloads.DISPLAY_NAME, MediaStore.Downloads.RELATIVE_PATH)
+            val selection = "${MediaStore.Downloads.RELATIVE_PATH} LIKE ? AND ${MediaStore.Downloads.OWNER_PACKAGE_NAME} = ? AND ${MediaStore.Downloads.IS_PENDING} = 0"
+            contentResolver.query(collection, columns, selection, arrayOf("${Environment.DIRECTORY_DOWNLOADS}/Alium/%", packageName), null)?.use { cursor ->
+                var visited=0
+                while (cursor.moveToNext()) {
+                    if (visited++ >= 4000 || found.size >= 2000) throw IllegalStateException()
+                    val name=cursor.getString(1) ?: continue
+                    val path=cursor.getString(2) ?: continue
+                    val category=path.removePrefix("${Environment.DIRECTORY_DOWNLOADS}/Alium/").substringBefore('/')
+                    if (category in folders) add(ContentUris.withAppendedId(collection, cursor.getLong(0)), name, category)
+                }
+            } ?: throw IllegalStateException()
+        }
+        val tree=storagePrefs.getString("tree", null)
+        if (tree != null) {
+            val treeUri=Uri.parse(tree)
+            val root=DocumentsContract.getTreeDocumentId(treeUri)
+            val columns=arrayOf(DocumentsContract.Document.COLUMN_DOCUMENT_ID, DocumentsContract.Document.COLUMN_DISPLAY_NAME, DocumentsContract.Document.COLUMN_MIME_TYPE)
+            val directories=mutableListOf<Pair<String, String>>()
+            val children=DocumentsContract.buildChildDocumentsUriUsingTree(treeUri, root)
+            contentResolver.query(children, columns, null, null, null)?.use { cursor ->
+                var visited=0
+                while (cursor.moveToNext()) {
+                    if (visited++ >= 4000 || found.size >= 2000) throw IllegalStateException()
+                    val id=cursor.getString(0) ?: continue
+                    val name=cursor.getString(1) ?: continue
+                    if (cursor.getString(2)==DocumentsContract.Document.MIME_TYPE_DIR) {
+                        if (name in folders) directories.add(id to name)
+                    } else add(DocumentsContract.buildDocumentUriUsingTree(treeUri,id), name, "Other")
+                }
+            } ?: throw IllegalStateException()
+            for ((id, category) in directories.take(8)) {
+                val child=DocumentsContract.buildChildDocumentsUriUsingTree(treeUri,id)
+                contentResolver.query(child, columns, null, null, null)?.use { cursor ->
+                    var visited=0
+                    while (cursor.moveToNext()) {
+                    if (visited++ >= 4000 || found.size >= 2000) throw IllegalStateException()
+                        val doc=cursor.getString(0) ?: continue
+                        val name=cursor.getString(1) ?: continue
+                        if (cursor.getString(2)!=DocumentsContract.Document.MIME_TYPE_DIR) add(DocumentsContract.buildDocumentUriUsingTree(treeUri,doc), name, category)
+                    }
+                } ?: throw IllegalStateException()
+            }
+        }
+        return found.values.toList()
+    }
+
     @Suppress("DEPRECATION")
     private fun versionCode(info: PackageInfo): Long = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) info.longVersionCode else info.versionCode.toLong()
 
@@ -218,7 +375,7 @@ class MainActivity: FlutterActivity() {
     }
 
     @Suppress("DEPRECATION")
-    private fun verifyUpdate(path: String, code: Long, expectedSize: Long, expectedHash: String): File {
+    private fun verifyUpdate(path: String, code: Long, minSdk: Int, expectedSize: Long, expectedHash: String): File {
         val file = File(path).canonicalFile
         val allowed = File(cacheDir, "alium_updates/update.apk").canonicalFile
         if (file != allowed || !file.isFile || expectedSize <= 0 || expectedSize > 250L * 1024 * 1024 || file.length() != expectedSize || !Regex("^[a-f0-9]{64}$").matches(expectedHash)) throw SecurityException()
@@ -234,7 +391,8 @@ class MainActivity: FlutterActivity() {
         val archive = packageManager.getPackageArchiveInfo(file.path, flags) ?: throw SecurityException()
         val installedSigners = signerDigests(installed)
         if (archive.packageName != packageName || code != versionCode(archive) || code <= versionCode(installed) || installedSigners.isEmpty() || signerDigests(archive) != installedSigners) throw SecurityException()
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && (archive.applicationInfo?.minSdkVersion ?: Int.MAX_VALUE) > Build.VERSION.SDK_INT) throw SecurityException()
+        if (minSdk < 1 || minSdk > Build.VERSION.SDK_INT) throw SecurityException()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && (archive.applicationInfo?.minSdkVersion ?: Int.MAX_VALUE) != minSdk) throw SecurityException()
         return file
     }
 

@@ -104,4 +104,31 @@ void main() {
     downloads.dispose(); await client.stream.close();
   });
 
+  testWidgets('refresh adds discovered files without inventing a catalog link', (tester) async {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(const MethodChannel('marketplace_trader/files'), (call) async {
+      if(call.method=='scan') return [{'uri':'content://downloads/2','name':'Local.mcpack','category':'Add-ons'}];
+      if(call.method=='checkFiles') return <String>[];
+      return null;
+    });
+    final client=FakeTelegram(); final downloads=BotDownload(client);
+    await tester.pump(); await tester.pump();
+    expect(downloads.visibleFiles.single.name,'Local.mcpack');
+    expect(downloads.visibleFiles.single.uuid,isEmpty);
+    downloads.dispose(); await client.stream.close();
+  });
+  testWidgets('refresh failure preserves previous discoveries', (tester) async {
+    var fail=false;
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(const MethodChannel('marketplace_trader/files'), (call) async {
+      if(call.method=='scan') {if(fail) throw PlatformException(code:'denied'); return [{'uri':'content://downloads/2','name':'Local.mcpack'}];}
+      if(call.method=='checkFiles') return <String>[];
+      return null;
+    });
+    final client=FakeTelegram(); final downloads=BotDownload(client);
+    await tester.pump(); await tester.pump();
+    expect(downloads.visibleFiles,hasLength(1));
+    fail=true; await downloads.refreshFiles();
+    expect(downloads.visibleFiles,hasLength(1)); expect(downloads.scanError,isNotNull);
+    downloads.dispose(); await client.stream.close();
+  });
+
 }

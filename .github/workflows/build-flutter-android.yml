@@ -38,6 +38,7 @@ jobs:
         working-directory: android-app
         run: |
           set +e
+          python3 -m unittest discover -s scripts -p 'test_*.py' || exit $?
           flutter analyze --no-fatal-infos > /tmp/flutter-analyze.log 2>&1
           code=$?
           cat /tmp/flutter-analyze.log

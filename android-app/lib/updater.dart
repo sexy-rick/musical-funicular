@@ -103,7 +103,7 @@ Future<void> checkForUpdates(BuildContext context, {bool automatic=false}) async
     final info=await client.check();
     if (!context.mounted) return;
     if (info==null) {
-      if (!automatic) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('No update release available.')));
+      if (!automatic) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('No update metadata found.')));
       return;
     }
     if (info.code <= (installed['versionCode'] as int)) {
@@ -129,20 +129,23 @@ class UpdateDialog extends StatefulWidget {
 }
 class _UpdateDialogState extends State<UpdateDialog> {
   bool busy=false, verifying=false; double? progress; File? downloaded; String? error;
+  UpdateClient? transfer;
+  @override void dispose() {transfer?.close();super.dispose();}
   Future<void> download() async {
     setState((){busy=true;error=null;progress=null;});
+    final current=UpdateClient(); transfer=current;
     try {
-      final file=await widget.client.download(widget.info,(value){if(mounted)setState(()=>progress=value);});
+      final file=await current.download(widget.info,(value){if(mounted)setState(()=>progress=value);});
       // Android validates archive identity and installed signer before offering installation.
-      await updateChannel.invokeMethod<void>('verify',{'path':file.path,'versionCode':widget.info.code,'size':widget.info.size,'sha256':widget.info.hash});
+      await updateChannel.invokeMethod<void>('verify',{'path':file.path,'versionCode':widget.info.code,'minSdk':widget.info.minSdk,'size':widget.info.size,'sha256':widget.info.hash});
       if(mounted)setState(()=>downloaded=file);
-    } catch (_) { if(mounted)setState(()=>error=widget.client.canceled?'Download canceled.':'Download or verification failed.'); }
-    finally { if(mounted)setState(()=>busy=false); }
+    } catch (_) { if(mounted)setState(()=>error=current.canceled?'Download canceled.':'Download or verification failed.'); }
+    finally { current.close(); if(mounted)setState(()=>busy=false); }
   }
   Future<void> install() async {
     setState((){verifying=true;error=null;});
     try {
-      final result=await updateChannel.invokeMethod<String>('install',{'path':downloaded!.path,'versionCode':widget.info.code,'size':widget.info.size,'sha256':widget.info.hash});
+      final result=await updateChannel.invokeMethod<String>('install',{'path':downloaded!.path,'versionCode':widget.info.code,'minSdk':widget.info.minSdk,'size':widget.info.size,'sha256':widget.info.hash});
       if(mounted && result=='permission') setState(()=>error='Allow installs, then tap Install again.');
     } catch (_) { if(mounted)setState(()=>error='Update could not be installed.'); }
     finally {if(mounted)setState(()=>verifying=false);}
@@ -162,10 +165,10 @@ class _UpdateDialogState extends State<UpdateDialog> {
       if(error!=null) ...[const SizedBox(height:8),Text(error!,style:TextStyle(color:Theme.of(context).colorScheme.error))],
     ])),
     actions:[
-      if(downloaded!=null) FilledButton(onPressed:verifying?null:install,child:const Text('Install')) else FilledButton(onPressed:busy||widget.client.canceled?null:download,child:const Text('Download update')),
+      if(downloaded!=null) FilledButton(onPressed:verifying?null:install,child:const Text('Install')) else FilledButton(onPressed:busy?null:download,child:const Text('Download update')),
       TextButton(onPressed:busy||verifying?null:()=>Navigator.pop(context),child:const Text('Later')),
       TextButton(onPressed:busy||verifying?null:remind,child:const Text('Remind tomorrow')),
-      if(busy) TextButton(onPressed:widget.client.close,child:const Text('Cancel')),
+      if(busy) TextButton(onPressed:()=>transfer?.close(),child:const Text('Cancel')),
     ],
   ));
 }

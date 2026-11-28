@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:country_picker/country_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -114,7 +115,7 @@ class _CatalogScreenState extends State<CatalogScreen> {
     }))]);
   @override Widget build(BuildContext context)=>Scaffold(
     appBar:AppBar(title:Row(children:[ClipRRect(borderRadius:BorderRadius.circular(10),child:Image.asset('assets/alium_icon.png',width:40,height:40)),const SizedBox(width:10),Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,mainAxisSize:MainAxisSize.min,children:[Text('Alium',style:Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight:FontWeight.bold)),Text('by Marketplace Trader',style:Theme.of(context).textTheme.labelMedium,overflow:TextOverflow.ellipsis)]))]),actions:[AnimatedBuilder(animation:telegram,builder:(context,_)=>IconButton(tooltip:'Telegram account',onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>AccountScreen(telegram:telegram))),icon:ProfileAvatar(telegram:telegram,radius:16)))]),
-    body:SafeArea(child:IndexedStack(index:tab,children:[browse(),DownloadsView(downloads:downloads),SettingsView(telegram:telegram,mode:widget.mode,onTheme:widget.onTheme,accent:widget.accent,onAccent:widget.onAccent)])),
+    body:SafeArea(child:IndexedStack(index:tab,children:[browse(),DownloadsView(downloads:downloads),SettingsView(telegram:telegram,mode:widget.mode,onTheme:widget.onTheme,accent:widget.accent,onAccent:widget.onAccent,onManage:()=>setState(()=>tab=1))])),
     bottomNavigationBar:NavigationBar(selectedIndex:tab,onDestinationSelected:(v)=>setState(()=>tab=v),destinations:const [NavigationDestination(icon:Icon(Icons.grid_view_outlined),selectedIcon:Icon(Icons.grid_view),label:'Browse'),NavigationDestination(icon:Icon(Icons.download_outlined),selectedIcon:Icon(Icons.download),label:'Downloads'),NavigationDestination(icon:Icon(Icons.settings_outlined),selectedIcon:Icon(Icons.settings),label:'Settings')]));
 }
 
@@ -273,13 +274,15 @@ class DownloadsView extends StatelessWidget {
         ]))),
       for(var i=0;i<d.queue.length;i++) ListTile(title:Text(d.queue[i]['title'] ?? 'Download'),subtitle:const Text('Waiting for previous request.'),trailing:IconButton(tooltip:'Cancel queued download',icon:const Icon(Icons.close),onPressed:()=>d.removeQueued(i))),
       const SizedBox(height:24),
-      Text('Downloaded',style:theme.textTheme.titleLarge?.copyWith(fontWeight:FontWeight.bold)),
+      Row(children:[Expanded(child:Text('Downloaded',style:theme.textTheme.titleLarge?.copyWith(fontWeight:FontWeight.bold))),IconButton(tooltip:'Refresh files',onPressed:d.scanning?null:()=>d.refreshFiles(),icon:const Icon(Icons.refresh))]),
+      if(d.scanning) const Text('Checking accessible files…'),
+      if(d.scanError!=null) Text(d.scanError!),
       const SizedBox(height:8),
-      if(d.history.isEmpty) const Card(child:ListTile(leading:Icon(Icons.folder_outlined),title:Text('No saved files yet'),subtitle:Text('Saved files will appear here.'))),
-      for(final item in d.history) Card(child:ListTile(
+      if(d.visibleFiles.isEmpty) const Card(child:ListTile(leading:Icon(Icons.folder_outlined),title:Text('No saved files yet'),subtitle:Text('Saved files will appear here.'))),
+      for(final item in d.visibleFiles) Card(child:ListTile(
         dense:true,contentPadding:const EdgeInsets.fromLTRB(12,0,8,0),
-        leading:CircleAvatar(backgroundColor:theme.colorScheme.secondaryContainer,child:Icon(Icons.insert_drive_file_outlined,color:theme.colorScheme.onSecondaryContainer)),
-        title:Text(displayDownloadName(item.name),maxLines:2,overflow:TextOverflow.ellipsis),subtitle:Text(item.category),
+        leading:PackIcon(item:item),
+        title:Text(displayDownloadName(item.name),maxLines:2,overflow:TextOverflow.ellipsis),subtitle:Text(d.unavailable.contains(item.uri)?'File missing or inaccessible':item.category),
         onTap:()=>perform(context,()=>d.open(item)),
         trailing:PopupMenuButton<String>(tooltip:'Manage download',onSelected:(value) async {
           if(value=='open') {await perform(context,()=>d.open(item));return;}
@@ -287,14 +290,36 @@ class DownloadsView extends StatelessWidget {
           if(value=='share') {await shareItem(context,item.uuid,item.title,item.version);return;}
           final delete=await showDialog<bool>(context:context,builder:(context)=>AlertDialog(title:const Text('Delete file?'),content:Text('Delete ${item.name} from your device?'),actions:[TextButton(onPressed:()=>Navigator.pop(context,false),child:const Text('Cancel')),FilledButton(onPressed:()=>Navigator.pop(context,true),child:const Text('Delete'))]));
           if(delete==true && context.mounted) await perform(context,()=>d.remove(item,deleteFile:true));
-        },itemBuilder:(_)=>const [PopupMenuItem(value:'open',child:Text('Open')),PopupMenuItem(value:'share',child:Text('Share link')),PopupMenuItem(value:'file',child:Text('Share file')),PopupMenuItem(value:'delete',child:Text('Delete file'))]),
+        },itemBuilder:(_)=>[const PopupMenuItem(value:'open',child:Text('Open')),if(item.uuid.isNotEmpty) const PopupMenuItem(value:'share',child:Text('Share link')),const PopupMenuItem(value:'file',child:Text('Share file')),const PopupMenuItem(value:'delete',child:Text('Delete file'))]),
       )),
     ])));
   });
 }
 
+class PackIcon extends StatefulWidget {
+  const PackIcon({super.key,required this.item});
+  final SavedDownload item;
+  @override State<PackIcon> createState()=>_PackIconState();
+}
+class _PackIconState extends State<PackIcon> {
+  Uint8List? bytes;
+  int generation=0;
+  @override void initState(){super.initState();_load();}
+  @override void didUpdateWidget(covariant PackIcon oldWidget){super.didUpdateWidget(oldWidget);if(oldWidget.item.uri!=widget.item.uri || oldWidget.item.name!=widget.item.name){bytes=null;_load();}}
+  Future<void> _load() async {
+    final current=++generation;
+    try {final value=await fileChannel.invokeMethod<Uint8List>('icon',{'uri':widget.item.uri,'name':widget.item.name});if(mounted && current==generation)setState(()=>bytes=value);} catch (_) {}
+  }
+  @override Widget build(BuildContext context){
+    final theme=Theme.of(context);
+    final fallback=Icon(Icons.insert_drive_file_outlined,color:theme.colorScheme.onSecondaryContainer);
+    return CircleAvatar(backgroundColor:theme.colorScheme.secondaryContainer,child:bytes==null?fallback:ClipOval(child:Image.memory(bytes!,width:40,height:40,fit:BoxFit.cover,errorBuilder:(_,__,___)=>fallback)));
+  }
+}
+
 class SettingsView extends StatelessWidget {
-  const SettingsView({super.key,required this.telegram,required this.mode,required this.onTheme,required this.accent,required this.onAccent});
+  const SettingsView({super.key,required this.telegram,required this.mode,required this.onTheme,required this.accent,required this.onAccent,this.onManage});
+  final VoidCallback? onManage;
   final TelegramClient telegram;
   final ThemeMode mode;
   final ValueChanged<ThemeMode> onTheme;
@@ -310,7 +335,7 @@ class SettingsView extends StatelessWidget {
       Card(child:ListTile(leading:AnimatedBuilder(animation:telegram,builder:(_,__)=>ProfileAvatar(telegram:telegram,radius:22)),title:const Text('Telegram account'),subtitle:const Text('Profile and sign-in'),onTap:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>AccountScreen(telegram:telegram))))),
       heading('Preferences'),
       Card(child:ListTile(leading:const Icon(Icons.palette_outlined),title:const Text('Appearance'),subtitle:const Text('Theme and accent color'),onTap:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>AppearanceScreen(mode:mode,onTheme:onTheme,accent:accent,onAccent:onAccent))))),
-      Card(child:ListTile(leading:const Icon(Icons.folder_outlined),title:const Text('Downloads & storage'),subtitle:const Text('Download location'),onTap:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>const StorageScreen())))),
+      Card(child:ListTile(leading:const Icon(Icons.folder_outlined),title:const Text('Downloads & storage'),subtitle:const Text('Download location'),onTap:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>StorageScreen(onManage:onManage))))),
       Card(child:ListTile(leading:const Icon(Icons.system_update_outlined),title:const Text('App updates'),subtitle:const Text('Check for updates'),onTap:()=>checkForUpdates(context))),
       heading('Support & community'),
       Card(child:Column(children:[
@@ -338,8 +363,9 @@ class _AppearanceScreenState extends State<AppearanceScreen> {
   ]))));
 }
 class StorageScreen extends StatelessWidget {
-  const StorageScreen({super.key});
-  @override Widget build(BuildContext context)=>Scaffold(appBar:AppBar(title:const Text('Downloads & storage')),body:Center(child:ConstrainedBox(constraints:const BoxConstraints(maxWidth:760),child:ListView(padding:const EdgeInsets.all(20),children:const [Card(child:DownloadFolderTile())]))));
+  const StorageScreen({super.key,this.onManage});
+  final VoidCallback? onManage;
+  @override Widget build(BuildContext context)=>Scaffold(appBar:AppBar(title:const Text('Downloads & storage')),body:Center(child:ConstrainedBox(constraints:const BoxConstraints(maxWidth:760),child:ListView(padding:const EdgeInsets.all(20),children:[const Card(child:DownloadFolderTile()),if(onManage!=null) Card(child:ListTile(leading:const Icon(Icons.download_outlined),title:const Text('Manage downloaded files'),onTap:(){Navigator.pop(context);onManage!();}))]))));
 }
 
 class DownloadFolderTile extends StatefulWidget {

@@ -49,14 +49,25 @@ class SavedDownload {
 }
 
 class BotDownload extends ChangeNotifier {
-  BotDownload(this.client) { _sub = client.events.listen(_onEvent); unawaited(_loadHistory()); }
+  BotDownload(this.client) { _sub = client.events.listen(_onEvent); _historyReady=_loadHistory(); }
   final TelegramClient client;
   late StreamSubscription<Map<String, dynamic>> _sub;
+  late final Future<void> _historyReady;
+  bool _historyLoaded=false;
+  Future<void> _persistTail=Future<void>.value();
   final files = <int, BotFile>{};
   final selected = <int>{};
   final _saving = <int>{};
   final _saved = <int>{};
   final history = <SavedDownload>[];
+  final _discovered = <SavedDownload>[];
+  final unavailable = <String>{};
+  bool scanning = false;
+  String? scanError;
+  List<SavedDownload> get visibleFiles {
+    final known=history.map((item)=>item.uri).toSet();
+    return [...history,..._discovered.where((item)=>!known.contains(item.uri))];
+  }
   final _buffer = <Map<String, dynamic>>[];
   final _queue = <Map<String, String>>[];
   List<Map<String, String>> get queue => List.unmodifiable(_queue);
@@ -77,13 +88,36 @@ class BotDownload extends ChangeNotifier {
       if (raw is List) { history.addAll(raw.whereType<Map<String, dynamic>>().map(SavedDownload.fromJson).where((e) => e.uri.startsWith('content://'))); }
       _changed();
     } catch (_) { /* Damaged history must not stop downloads. */ }
+    _historyLoaded=true;
+    if (!_disposed) unawaited(refreshFiles());
   }
-  Future<void> _persist() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('alium_downloads', jsonEncode(history.map((e) => e.toJson()).toList()));
+  Future<void> _persist() {
+    final snapshot=jsonEncode(history.map((e)=>e.toJson()).toList());
+    final next=_persistTail.catchError((_) {}).then((_) async {
+      final prefs=await SharedPreferences.getInstance();
+      await prefs.setString('alium_downloads',snapshot);
+    });
+    _persistTail=next;
+    return next;
+  }
+  Future<void> refreshFiles() async {
+    if (scanning) return;
+    scanning=true; scanError=null; _changed();
+    try {
+      final entries=await _channel.invokeListMethod<dynamic>('scan');
+      if (entries==null) throw const FormatException('Empty scan');
+      final discovered=entries.whereType<Map>().map((row)=>SavedDownload.fromJson(Map<String,dynamic>.from(row))).where((row)=>row.uri.startsWith('content://')).toList();
+      final check=await _channel.invokeListMethod<String>('checkFiles',{'uris':history.map((e)=>e.uri).toList()});
+      if (_disposed) return;
+      _discovered..clear()..addAll(discovered);
+      unavailable..clear()..addAll(check ?? const []);
+    } catch (_) { if (!_disposed) scanError='Folder refresh unavailable. Check access and retry.'; }
+    finally { scanning=false; _changed(); }
   }
   Future<void> request(String itemUuid, {String itemTitle = '', String itemCategory = '', String itemVersion = ''}) async {
+    if (!_historyLoaded) await _historyReady;
     if (!client.ready) throw TdException('Sign in to Telegram first.');
+    if (_disposed) throw TdException('Downloads unavailable.');
     if (_canceling) throw TdException('Cancellation in progress.');
     if (!RegExp(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$',caseSensitive:false).hasMatch(itemUuid)) throw TdException('Invalid item ID.');
     if (uuid != null) {
@@ -242,7 +276,7 @@ class BotDownload extends ChangeNotifier {
   Future<void> open(SavedDownload item) async => _channel.invokeMethod<void>('open', {'uri':item.uri,'name':item.name});
   Future<void> remove(SavedDownload item, {bool deleteFile = false}) async {
     if (deleteFile) await _channel.invokeMethod<void>('delete', {'uri':item.uri});
-    history.remove(item); await _persist(); _changed();
+    history.remove(item); _discovered.removeWhere((entry)=>entry.uri==item.uri); unavailable.remove(item.uri); await _persist(); _changed();
   }
   @override void dispose() { _disposed = true; _generation++; _deadline?.cancel(); _settle?.cancel(); _sub.cancel(); super.dispose(); }
 }
