@@ -174,7 +174,8 @@ void main() {
     await tester.pumpWidget(MaterialApp(home:DetailScreen(item:item,telegram:telegram,downloads:downloads,catalogApi:api)));
     expect(find.text('KEEP EXPLORING'),findsNothing);
     await tester.scrollUntilVisible(find.text('More like this'),300,scrollable:find.byType(Scrollable).first);
-    await tester.tap(find.text('More like this')); await tester.pump(); await tester.pump();
+    await tester.ensureVisible(find.text('More like this')); await tester.pumpAndSettle();
+    await tester.tap(find.text('More like this')); await tester.pumpAndSettle();
     expect(api.pages,[1]);
     await tester.scrollUntilVisible(find.text('A catalog item'),300,scrollable:find.byType(Scrollable).first);
     expect(find.text('A catalog item'),findsOneWidget);
