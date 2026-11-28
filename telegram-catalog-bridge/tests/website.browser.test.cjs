@@ -14,7 +14,7 @@ const item={uuid:id,title:'A very long add-on name '.repeat(5),creator:'Maker',c
 // Simulate a returning visitor whose browser holds the old, unversioned assets.
 const oldCss=execFileSync('git',['show','e4d3499:telegram-catalog-bridge/website/assets/style.css']);
 const oldJs=execFileSync('git',['show','e4d3499:telegram-catalog-bridge/website/assets/catalog.js']);
-const server=http.createServer((req,res)=>{const path=new URL(req.url,'http://localhost').pathname; if(html[path] || prettyRoute.test(path)){res.setHeader('Content-Type','text/html');res.end(html[path] || html['/addon.php']);return;} if(path==='/assets/style.css'||path==='/assets/catalog.js'){res.setHeader('Content-Type',path.endsWith('.css')?'text/css':'application/javascript');res.end(path.endsWith('.css')?oldCss:oldJs);return;} if(['/assets/site-v15.css','/assets/catalog-v14.js','/assets/search-v10.js','/assets/filters-v11.js','/assets/theme-v10.js','/assets/icons-v10.svg','/assets/icons-v12.svg','/assets/brand-logo-v8.jpg','/assets/alium-icon.png','/assets/install-v15.js'].includes(path)){res.setHeader('Content-Type',path.endsWith('.css')?'text/css':path.endsWith('.svg')?'image/svg+xml':path.endsWith('.jpg')?'image/jpeg':path.endsWith('.png')?'image/png':'application/javascript');res.end(readFileSync(join(root,path)));return;}res.statusCode=404;res.end();});
+const server=http.createServer((req,res)=>{const path=new URL(req.url,'http://localhost').pathname; if(html[path] || prettyRoute.test(path)){res.setHeader('Content-Type','text/html');res.end(html[path] || html['/addon.php']);return;} if(path==='/assets/style.css'||path==='/assets/catalog.js'){res.setHeader('Content-Type',path.endsWith('.css')?'text/css':'application/javascript');res.end(path.endsWith('.css')?oldCss:oldJs);return;} if(['/site.webmanifest','/sw-v16.js','/android-chrome-192x192.png','/android-chrome-512x512.png','/assets/site-v16.css','/assets/catalog-v14.js','/assets/search-v10.js','/assets/filters-v11.js','/assets/theme-v10.js','/assets/icons-v10.svg','/assets/icons-v12.svg','/assets/brand-logo-v8.jpg','/assets/alium-icon.png','/assets/install-v15.js','/assets/pwa-v16.js'].includes(path)){res.setHeader('Content-Type',path.endsWith('.webmanifest')?'application/manifest+json':path.endsWith('.css')?'text/css':path.endsWith('.svg')?'image/svg+xml':path.endsWith('.jpg')?'image/jpeg':path.endsWith('.png')?'image/png':'application/javascript');res.end(readFileSync(join(root,path)));return;}res.statusCode=404;res.end();});
 (async()=>{
  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
  const browser=await chromium.launch({executablePath:await chrome.executablePath(),args:chrome.args.filter(arg=>arg!=='--disable-web-security'),headless:true});
@@ -53,8 +53,19 @@ const server=http.createServer((req,res)=>{const path=new URL(req.url,'http://lo
   await page.goto(`http://127.0.0.1:${server.address().port}/index.php`);
   assert.equal(await page.locator('.hero-actions a').nth(0).getAttribute('href'),'#catalog');
   assert.equal(await page.locator('.hero-actions a').nth(1).getAttribute('href'),'/alium.php');
-  assert.equal(await page.locator('.hero-actions a').nth(2).getAttribute('href'),'/alium.php#install-website');
+  assert.equal(await page.locator('.hero-actions a').count(),2);
+  assert.equal(await page.locator('.hero-app-button').evaluate(e=>getComputedStyle(e).backgroundColor),'rgb(135, 79, 158)');
+  assert.equal(await page.locator('.hero-app-button').evaluate(e=>getComputedStyle(e).color),'rgb(255, 255, 255)');
   await page.goto(appUrl);
+  await page.evaluate(async()=>{await navigator.serviceWorker.ready;});
+  const cdp=await page.context().newCDPSession(page);
+  const manifest=await cdp.send('Page.getAppManifest');
+  assert.deepEqual(manifest.errors,[],'Chrome manifest parsing');
+  const installability=await cdp.send('Page.getInstallabilityErrors');
+  assert.deepEqual(installability.installabilityErrors,[],'Chrome installability with locally served manifest, icons and service worker');
+  await cdp.detach();
+  // The event below is mocked; Chrome's actual prompt remains a device test.
+  await page.reload();
   assert.equal(await page.locator('#web-install-button').isHidden(),true);
   await page.evaluate(()=>{const e=new Event('beforeinstallprompt',{cancelable:true}); e.prompt=async()=>{window.__promptCalled=true;}; e.userChoice=Promise.resolve({outcome:'dismissed'}); window.dispatchEvent(e);});
   assert.equal(await page.locator('#web-install-button').isVisible(),true);

@@ -1,3 +1,8 @@
+## Website Chrome install follow-up (2026-11-28)
+
+- Removed the home Install website button and changed Download app to Alium purple. Website installation instructions remain on the app page, including Chrome's Create shortcut option. Added a no-cache, no-fetch-interception compatibility service worker registered on normal website pages; browser security protections and private configuration remain unchanged. On Chrome this registration is not sufficient by itself to guarantee installation. InfinityFree's security challenge can affect the manifest, worker or Android WebAPK fetches; the reported device error is not yet diagnosed conclusively. Live Chrome and provider compatibility testing remains mandatory.
+- Website ZIP now v16; v15 rollback is `website-upload-v15-rollback.zip`. APK is not included; preserve host `config.php`. PHP, JS, jsdom and ZIP checks passed locally. Chromium installability and mocked-browser CI run are pending.
+
 ## Chrome website app install (2026-11-28)
 
 - Added a separate Chrome website-install option and instructions, stable standalone manifest start URL, user-gesture install prompt when supported, and no-JavaScript fallback instructions. This installs Marketplace Trader website, not Alium APK, and does not add offline caching or bypass InfinityFree challenges. Chrome eligibility and host behavior require real live-device testing.

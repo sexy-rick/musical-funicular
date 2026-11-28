@@ -33,6 +33,8 @@ jobs:
           find telegram-catalog-bridge/website -type f -name '*.php' -print0 | xargs -0 -n1 "$PHP_WASM_CLI" -l
           node --check telegram-catalog-bridge/website/assets/catalog-v14.js
           node --check telegram-catalog-bridge/website/assets/install-v15.js
+          node --check telegram-catalog-bridge/website/assets/pwa-v16.js
+          node --check telegram-catalog-bridge/website/sw-v16.js
           node telegram-catalog-bridge/tests/website-v15.test.cjs
           node telegram-catalog-bridge/tests/website-v14.test.cjs
           CATALOG_VERSION=v14 node telegram-catalog-bridge/tests/website-v13.test.cjs
@@ -63,7 +65,7 @@ jobs:
               assert z.testzip() is None
               names = z.namelist()
               assert len(names) == len(set(names)) and set(names) == set(files)
-              assert {'.htaccess','alium.php','assets/alium-icon.png','assets/catalog-v14.js','assets/site-v15.css','assets/install-v15.js','site.webmanifest'} <= set(names)
+              assert {'.htaccess','alium.php','assets/alium-icon.png','assets/catalog-v14.js','assets/site-v16.css','assets/install-v15.js','assets/pwa-v16.js','sw-v16.js','site.webmanifest'} <= set(names)
               assert not any(n.endswith(('config.php','.env','.sql','.key','.apk')) for n in names)
               for name in names:
                   assert z.read(name) == files[name].read_bytes(), name

@@ -5,7 +5,7 @@ const {JSDOM} = require('jsdom');
 const root = join(__dirname, '../website');
 const script=readFileSync(join(root,'assets/install-v15.js'),'utf8');
 const source=readFileSync(join(root,'alium.php'),'utf8');
-assert.match(source,/Chrome on Android/); assert.match(source,/Chrome on computer/); assert.match(source,/Internet access is required/);
+assert.match(source,/Chrome on Android/); assert.match(source,/Chrome on computer/); assert.match(source,/Internet access is required/); assert.match(source,/Create shortcut/);
 function setup(standalone=false){
  const dom=new JSDOM('<button id="web-install-button" hidden>Install</button><p id="web-install-status"></p>',{url:'https://example.com/alium.php',runScripts:'outside-only'});
  dom.window.matchMedia=()=>({matches:standalone}); dom.window.eval(script); return dom;

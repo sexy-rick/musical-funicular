@@ -38,7 +38,7 @@ pageHeader('Download Alium for Android');
     <div class="web-install-instructions">
       <p><strong>Chrome on Android:</strong> Open Chrome’s menu, then select <strong>Install app</strong> or <strong>Add to Home screen</strong>.</p>
       <p><strong>Chrome on computer:</strong> Use the install icon in the address bar, or look for an install option in Chrome’s menu. Menu names vary by version.</p>
-      <p>If an install option is not available, continue using the website in your browser. Internet access is required.</p>
+      <p>If Chrome says the app cannot be installed, choose <strong>Create shortcut</strong> to open the website from your home screen in Chrome. Internet access is required.</p>
     </div>
   </section>
   <script src="/assets/install-v15.js" defer></script>
