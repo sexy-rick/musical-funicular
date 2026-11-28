@@ -116,7 +116,7 @@ class ExpressivePress extends StatefulWidget {
 }
 class _ExpressivePressState extends State<ExpressivePress> {
   bool pressed=false;
-  @override Widget build(BuildContext context)=>Listener(onPointerDown:(_)=>setState(()=>pressed=true),onPointerUp:(_)=>setState(()=>pressed=false),onPointerCancel:(_)=>setState(()=>pressed=false),child:AnimatedScale(scale:pressed&&!MediaQuery.disableAnimationsOf(context)&&!MediaQuery.of(context).reduceMotion?0.98:1,duration:const Duration(milliseconds:150),curve:Curves.easeOutBack,child:widget.child));
+  @override Widget build(BuildContext context)=>Listener(onPointerDown:(_)=>setState(()=>pressed=true),onPointerUp:(_)=>setState(()=>pressed=false),onPointerCancel:(_)=>setState(()=>pressed=false),child:AnimatedScale(scale:pressed&&!MediaQuery.disableAnimationsOf(context)&&!MediaQuery.of(context).accessibleNavigation?0.98:1,duration:const Duration(milliseconds:150),curve:Curves.easeOutBack,child:widget.child));
 }
 
 class CatalogCard extends StatelessWidget {
