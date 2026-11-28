@@ -4,6 +4,10 @@ import android.app.Activity
 import android.content.ClipData
 import android.content.ContentValues
 import android.content.Intent
+import android.content.pm.PackageInfo
+import android.content.pm.PackageManager
+import android.provider.Settings
+import androidx.core.content.FileProvider
 import android.net.Uri
 import android.os.Build
 import android.os.Environment
@@ -16,6 +20,7 @@ import io.flutter.plugin.common.MethodChannel
 import java.io.File
 import java.text.Normalizer
 import java.util.Locale
+import java.security.MessageDigest
 
 class MainActivity: FlutterActivity() {
     private var linkChannel: MethodChannel? = null
@@ -28,6 +33,46 @@ class MainActivity: FlutterActivity() {
         linkChannel = MethodChannel(engine.dartExecutor.binaryMessenger, "alium/links")
         linkChannel?.setMethodCallHandler { call, result ->
             if (call.method == "initial") result.success(intent?.dataString) else result.notImplemented()
+        }
+        MethodChannel(engine.dartExecutor.binaryMessenger, "alium/updates").setMethodCallHandler { call, result ->
+            when (call.method) {
+                "installed" -> {
+                    try {
+                        val info = packageManager.getPackageInfo(packageName, 0)
+                        result.success(mapOf("versionCode" to versionCode(info), "versionName" to (info.versionName ?: ""), "sdk" to Build.VERSION.SDK_INT))
+                    } catch (_: Exception) { result.error("version", "App version unavailable", null) }
+                }
+                "verify", "install" -> {
+                    val path = call.argument<String>("path") ?: ""
+                    val code = call.argument<Number>("versionCode")?.toLong() ?: -1
+                    val size = call.argument<Number>("size")?.toLong() ?: -1
+                    val hash = call.argument<String>("sha256") ?: ""
+                    Thread {
+                        try {
+                            val file = verifyUpdate(path, code, size, hash)
+                            runOnUiThread {
+                                try {
+                                    if (call.method == "verify") result.success(null)
+                                    else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && !packageManager.canRequestPackageInstalls()) {
+                                        startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:$packageName")))
+                                        result.success("permission")
+                                    } else {
+                                        val uri = FileProvider.getUriForFile(this, "$packageName.updates", file)
+                                        val view = Intent(Intent.ACTION_VIEW).apply {
+                                            setDataAndType(uri, "application/vnd.android.package-archive")
+                                            clipData = ClipData.newRawUri("Alium update", uri)
+                                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                        }
+                                        startActivity(view)
+                                        result.success("started")
+                                    }
+                                } catch (_: Exception) { result.error("install_failed", "Could not open installer", null) }
+                            }
+                        } catch (_: Exception) { runOnUiThread { result.error("invalid_update", "Update verification failed", null) } }
+                    }.start()
+                }
+                else -> result.notImplemented()
+            }
         }
         MethodChannel(engine.dartExecutor.binaryMessenger, "marketplace_trader/files").setMethodCallHandler { call, result ->
             when (call.method) {
@@ -133,22 +178,21 @@ class MainActivity: FlutterActivity() {
                         } catch (_: Exception) { source = null; pending = null; result.error("save_failed", "Could not open save dialog", null) }
                     }
                 }
-                "open", "delete" -> {
+                "open", "delete", "shareFile" -> {
                     val uri = try { Uri.parse(call.argument<String>("uri") ?: "") } catch (_: Exception) { null }
                     if (uri == null || uri.scheme != "content") { result.error("invalid_uri", "File is unavailable", null); return@setMethodCallHandler }
                     try {
-                        if (call.method == "open") {
-                            val intent = Intent(Intent.ACTION_VIEW).apply {
-                                setDataAndType(uri, contentResolver.getType(uri) ?: "application/octet-stream")
-                                val name = call.argument<String>("name") ?: ""
-                                val ext = name.substringAfterLast('.', "").lowercase()
-                                if (ext in setOf("mcpack", "mcaddon", "mcworld", "mctemplate")) {
-                                    setPackage("com.mojang.minecraftpe")
-                                    clipData = ClipData.newRawUri("Minecraft package", uri)
-                                }
+                        if (call.method == "open" || call.method == "shareFile") {
+                            // Verify the provider can still read the selected file before granting it.
+                            contentResolver.openAssetFileDescriptor(uri, "r")?.use {} ?: throw IllegalStateException()
+                            val name = call.argument<String>("name") ?: ""
+                            val type = contentResolver.getType(uri) ?: mime(name)
+                            val intent = Intent(if (call.method == "open") Intent.ACTION_VIEW else Intent.ACTION_SEND).apply {
+                                if (call.method == "open") setDataAndType(uri, type) else { this.type = type; putExtra(Intent.EXTRA_STREAM, uri) }
+                                clipData = ClipData.newRawUri("Alium file", uri)
                                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                             }
-                            startActivity(intent)
+                            startActivity(Intent.createChooser(intent, if (call.method == "open") "Open with" else "Share file"))
                         } else if (contentResolver.delete(uri, null, null) < 1) throw IllegalStateException()
                         result.success(null)
                     } catch (_: Exception) { result.error("file_unavailable", "File is missing or no compatible app is installed", null) }
@@ -162,6 +206,38 @@ class MainActivity: FlutterActivity() {
         setIntent(intent)
         intent.dataString?.let { linkChannel?.invokeMethod("link", it) }
     }
+    @Suppress("DEPRECATION")
+    private fun versionCode(info: PackageInfo): Long = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) info.longVersionCode else info.versionCode.toLong()
+
+    @Suppress("DEPRECATION")
+    private fun signerDigests(info: PackageInfo): Set<String> {
+        val signatures = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) info.signingInfo?.apkContentsSigners else info.signatures
+        return signatures?.map { signature ->
+            MessageDigest.getInstance("SHA-256").digest(signature.toByteArray()).joinToString("") { "%02x".format(it.toInt() and 255) }
+        }?.toSet() ?: emptySet()
+    }
+
+    @Suppress("DEPRECATION")
+    private fun verifyUpdate(path: String, code: Long, expectedSize: Long, expectedHash: String): File {
+        val file = File(path).canonicalFile
+        val allowed = File(cacheDir, "alium_updates/update.apk").canonicalFile
+        if (file != allowed || !file.isFile || expectedSize <= 0 || expectedSize > 250L * 1024 * 1024 || file.length() != expectedSize || !Regex("^[a-f0-9]{64}$").matches(expectedHash)) throw SecurityException()
+        val digest = MessageDigest.getInstance("SHA-256")
+        file.inputStream().use { stream ->
+            val buffer = ByteArray(65536)
+            while (true) { val n = stream.read(buffer); if (n < 0) break; digest.update(buffer, 0, n) }
+        }
+        val actual = digest.digest().joinToString("") { "%02x".format(it.toInt() and 255) }
+        if (actual != expectedHash) throw SecurityException()
+        val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) PackageManager.GET_SIGNING_CERTIFICATES else PackageManager.GET_SIGNATURES
+        val installed = packageManager.getPackageInfo(packageName, flags)
+        val archive = packageManager.getPackageArchiveInfo(file.path, flags) ?: throw SecurityException()
+        val installedSigners = signerDigests(installed)
+        if (archive.packageName != packageName || code != versionCode(archive) || code <= versionCode(installed) || installedSigners.isEmpty() || signerDigests(archive) != installedSigners) throw SecurityException()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && (archive.applicationInfo?.minSdkVersion ?: Int.MAX_VALUE) > Build.VERSION.SDK_INT) throw SecurityException()
+        return file
+    }
+
     private fun safeName(raw: String): String {
         val name = raw.substringAfterLast('/').substringAfterLast('\\').replace(Regex("[\\x00-\\x1f]"), "_").take(180).trim()
         return if (name.isBlank() || name == "." || name == "..") "download" else name

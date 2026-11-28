@@ -4,6 +4,7 @@ import shutil
 root = Path(__file__).resolve().parents[1]
 p = root / 'android/app/src/main/AndroidManifest.xml'
 s = p.read_text().replace('<application', '<uses-permission android:name="android.permission.INTERNET" />\n    <application android:allowBackup="false"')
+s = s.replace('<application', '<uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />\n    <application', 1)
 s = s.replace('android:label="marketplace_trader"', 'android:label="Alium"')
 link_filter = """<meta-data android:name="flutter_deeplinking_enabled" android:value="false" />
             <intent-filter>
@@ -16,7 +17,15 @@ link_filter = """<meta-data android:name="flutter_deeplinking_enabled" android:v
 if '<intent-filter>' not in s:
     raise SystemExit('Could not configure deep links')
 s = s.replace('<intent-filter>', link_filter, 1)
+provider = """<provider android:name="androidx.core.content.FileProvider" android:authorities="${applicationId}.updates" android:exported="false" android:grantUriPermissions="true">
+            <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/alium_update_paths" />
+        </provider>
+    </application>"""
+s = s.replace('</application>', provider, 1)
 p.write_text(s)
+xml = root / 'android/app/src/main/res/xml/alium_update_paths.xml'
+xml.parent.mkdir(parents=True, exist_ok=True)
+xml.write_text('<paths xmlns:android="http://schemas.android.com/apk/res/android"><cache-path name="updates" path="alium_updates/" /></paths>')
 p = root / 'android/app/src/main/kotlin/net/greatsite/marketplace_trader/MainActivity.kt'
 p.parent.mkdir(parents=True, exist_ok=True)
 p.write_text((root / 'android-template/MainActivity.kt').read_text())

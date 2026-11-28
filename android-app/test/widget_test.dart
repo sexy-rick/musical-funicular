@@ -18,7 +18,7 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
     const item = CatalogItem(uuid:'123',title:'A very long catalog title that should stay inside its card',creator:'Creator',category:'ADD-ON');
-    await tester.pumpWidget(MaterialApp(home:MediaQuery(data:const MediaQueryData(size:Size(320,800),textScaler:TextScaler.linear(2)),child:Scaffold(body:Align(alignment:Alignment.topCenter,child:SizedBox(width:288,height:380,child:CatalogCard(item:item,onTap:(){})))))));
+    await tester.pumpWidget(MaterialApp(home:MediaQuery(data:const MediaQueryData(size:Size(320,800),textScaler:TextScaler.linear(2)),child:Scaffold(body:Align(alignment:Alignment.topCenter,child:SingleChildScrollView(child:SizedBox(width:288,child:CatalogCard(item:item,onTap:(){}))))))));
     expect(tester.takeException(), isNull);
     final image = tester.getRect(find.byType(CatalogImage));
     expect(image.left,greaterThanOrEqualTo(0));
@@ -108,10 +108,30 @@ void main() {
     await tester.pump();
     expect(find.text('Telegram account'), findsOneWidget);
     expect(find.text('Appearance'), findsOneWidget);
+    expect(find.text('Use device theme'), findsNothing);
+    await tester.tap(find.text('Appearance'));
+    await tester.pumpAndSettle();
     expect(find.text('Use device theme'), findsOneWidget);
+    expect(find.text('About'), findsNothing);
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());
     telegram.dispose();
+  });
+
+  testWidgets('detail actions differ for signed-in and signed-out users', (tester) async {
+    final telegram=TelegramClient(); final downloads=BotDownload(telegram);
+    const item=CatalogItem(uuid:'12345678-1234-1234-1234-123456789abc',title:'Example');
+    await tester.pumpWidget(MaterialApp(home:Scaffold(body:DownloadPanel(item:item,telegram:telegram,downloads:downloads))));
+    expect(find.text('Open in Telegram'),findsOneWidget);
+    expect(find.text('Download in Alium'),findsOneWidget);
+    expect(find.text('Share'),findsNothing);
+    telegram.state='authorizationStateReady';
+    await tester.pumpWidget(MaterialApp(home:Scaffold(body:DownloadPanel(item:item,telegram:telegram,downloads:downloads))));
+    await tester.pump();
+    expect(find.text('Download'),findsOneWidget);
+    expect(find.text('Share'),findsOneWidget);
+    expect(find.text('Open in Telegram'),findsNothing);
+    await tester.pumpWidget(const SizedBox.shrink()); downloads.dispose(); telegram.dispose();
   });
 
 }

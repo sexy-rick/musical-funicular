@@ -18,6 +18,14 @@ String categoryFolder(String category) {
   }
 }
 
+String displayDownloadName(String name) {
+  final dot = name.lastIndexOf('.');
+  final stem = dot > 0 ? name.substring(0, dot) : name;
+  final extension = dot > 0 ? name.substring(dot) : '';
+  final clean = stem.replaceFirst(RegExp(r'\s+by\s+marketplace\s+trader\s*$', caseSensitive:false), '').trim();
+  return clean.isEmpty ? name : '$clean$extension';
+}
+
 class BotFile {
   BotFile({required this.id, required this.name, this.bytes = 0, this.path = '', this.complete = false, this.downloaded = 0});
   final int id;
@@ -50,12 +58,16 @@ class BotDownload extends ChangeNotifier {
   final _saved = <int>{};
   final history = <SavedDownload>[];
   final _buffer = <Map<String, dynamic>>[];
+  final _queue = <Map<String, String>>[];
+  List<Map<String, String>> get queue => List.unmodifiable(_queue);
+  bool get allDownloaded => files.isNotEmpty && _saving.isEmpty && files.keys.every(_saved.contains);
+  void removeQueued(int index) { if(index >= 0 && index < _queue.length) { _queue.removeAt(index); _changed(); } }
   int? chatId, botId, sentId;
   String? uuid;
   String title = '', category = '', version = '', status = '';
   Timer? _deadline, _settle;
   int _generation = 0;
-  bool paused = false, pausing = false, _disposed = false;
+  bool paused = false, pausing = false, _disposed = false, _canceling = false, _logoutPending = false;
   static const _channel = MethodChannel('marketplace_trader/files');
   void _changed() { if (!_disposed) notifyListeners(); }
   Future<void> _loadHistory() async {
@@ -72,8 +84,14 @@ class BotDownload extends ChangeNotifier {
   }
   Future<void> request(String itemUuid, {String itemTitle = '', String itemCategory = '', String itemVersion = ''}) async {
     if (!client.ready) throw TdException('Sign in to Telegram first.');
-    if (uuid != null) throw TdException('Another download is active.');
+    if (_canceling) throw TdException('Cancellation in progress.');
     if (!RegExp(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$',caseSensitive:false).hasMatch(itemUuid)) throw TdException('Invalid item ID.');
+    if (uuid != null) {
+      if (_queue.any((entry) => entry['uuid'] == itemUuid) || uuid == itemUuid) throw TdException('Download already requested.');
+      if (_queue.length >= 20) throw TdException('Download queue is full.');
+      _queue.add({'uuid':itemUuid,'title':itemTitle,'category':itemCategory,'version':itemVersion});
+      _changed(); return;
+    }
     final generation = ++_generation;
     uuid = itemUuid; title = itemTitle; category = itemCategory; version = itemVersion; files.clear(); selected.clear(); _saved.clear(); _buffer.clear(); sentId = null; paused = false;
     status = 'Contacting the bot…'; _changed();
@@ -90,17 +108,31 @@ class BotDownload extends ChangeNotifier {
       _buffer.clear();
       if (files.isEmpty) status = paused ? 'Paused' : 'Waiting for the bot…';
       _changed();
-      _deadline = Timer(const Duration(seconds:45), () {
-        if (generation == _generation && files.isEmpty && !paused) { status='No file received. Open Telegram.'; _changed(); }
-      });
+      _startDeadline(generation);
     } catch (_) {
       if (generation != _generation) return;
-      status='Could not contact the bot.'; _changed();
-      rethrow;
+      status='Could not contact the bot. Cancel or open Telegram.'; _changed();
+      throw TdException('Could not contact the bot.');
     }
   }
+  void _startDeadline(int generation) {
+    _deadline?.cancel();
+    _deadline = Timer(const Duration(seconds:45), () {
+      if (generation == _generation && uuid != null && files.isEmpty && !paused) {
+        status='No file received. Cancel or open Telegram.'; _changed();
+      }
+    });
+  }
   void _onEvent(Map<String, dynamic> event) {
-    if (event['@type'] == 'updateAuthorizationState' && !client.ready && uuid != null && _saving.isEmpty) { unawaited(cancelRequest()); return; }
+    if (event['@type'] == 'updateAuthorizationState' && !client.ready) {
+      _queue.clear();
+      if (uuid != null) {
+        if (_saving.isNotEmpty) { _logoutPending=true; _deadline?.cancel(); _settle?.cancel(); }
+        else { unawaited(cancelRequest()); }
+      }
+      _changed(); return;
+    }
+    if (_canceling) return;
     if (event['@type'] == 'updateFile' && event['file'] is Map<String,dynamic>) {
       final file = event['file'] as Map<String,dynamic>; final id = (file['id'] as num?)?.toInt();
       if (id != null && files.containsKey(id)) { files[id] = files[id]!.withUpdate(file); _changed(); if (!paused && files[id]!.complete && selected.contains(id)) unawaited(_save(id)); }
@@ -147,20 +179,25 @@ class BotDownload extends ChangeNotifier {
     try {
       final uri = await _channel.invokeMethod<String>('save', {'path':file.path,'name':file.name,'category':savedCategory});
       if (uri == null || uri.isEmpty) { selected.remove(id); status='Save canceled. Try again.'; }
-      else { history.insert(0, SavedDownload(name:file.name,title:savedTitle,category:savedCategory,uri:uri,uuid:savedUuid,version:savedVersion)); _saved.add(id); await _persist(); status='Saved to Downloads.'; }
+      else {
+        history.insert(0, SavedDownload(name:file.name,title:savedTitle,category:savedCategory,uri:uri,uuid:savedUuid,version:savedVersion));
+        _saved.add(id);
+        try { await _persist(); status='Downloaded'; }
+        catch (_) { status='Downloaded; history could not be saved.'; }
+      }
     } catch (_) { selected.remove(id); status='Could not save file.'; }
-    finally { _saving.remove(id); _changed(); _scheduleFinish(); }
+    finally { _saving.remove(id); _changed(); if (_logoutPending && _saving.isEmpty) { _logoutPending=false; unawaited(cancelRequest()); } else { _scheduleFinish(); } }
   }
   void _scheduleFinish() {
     _settle?.cancel();
     if (paused || uuid == null || files.isEmpty || _saving.isNotEmpty || files.keys.any((id)=>!_saved.contains(id))) return;
     final generation = _generation;
     // The bot has no end marker. This is a best-effort quiet period, not proof.
-    _settle = Timer(const Duration(seconds:15), () { if (generation == _generation && !paused && _saving.isEmpty && files.keys.every(_saved.contains)) _reset(); });
+    _settle = Timer(const Duration(seconds:15), () { if (generation == _generation && !paused && _saving.isEmpty && files.keys.every(_saved.contains)) _finishAndContinue(); });
   }
   Future<void> pause() async {
     if (uuid == null || paused) return;
-    paused = true; pausing = true; _settle?.cancel(); status='Paused'; _changed();
+    paused = true; pausing = true; _deadline?.cancel(); _settle?.cancel(); status='Paused'; _changed();
     for (final id in selected.toList()) {
       if (!_saved.contains(id) && !_saving.contains(id)) {
         try { await client.query({'@type':'cancelDownloadFile','file_id':id,'only_if_pending':false}); } catch (_) {}
@@ -172,17 +209,36 @@ class BotDownload extends ChangeNotifier {
   Future<void> resume() async {
     if (uuid == null || !paused || pausing) return;
     paused=false; status=files.isEmpty?'Waiting for the bot…':'Downloading…'; _changed();
+    if (files.isEmpty && sentId != null) _startDeadline(_generation);
     for (final id in files.keys.toList()) { if (!_saved.contains(id) && !_saving.contains(id)) unawaited(_autoDownload(id)); }
     _scheduleFinish();
   }
   Future<void> cancelRequest() async {
     if (_saving.isNotEmpty) throw TdException('Wait until saving finishes.');
-    final ids=selected.toList(); _reset();
+    if (_canceling || uuid == null) return;
+    _canceling=true;
+    final ids=selected.toList();
+    // Invalidate pending callbacks immediately, but do not send the next bot
+    // request until all cancellation queries have returned.
+    _generation++; _deadline?.cancel(); _settle?.cancel();
+    status='Canceling…'; _changed();
     for (final id in ids) { try { await client.query({'@type':'cancelDownloadFile','file_id':id,'only_if_pending':false}); } catch (_) {} }
+    _canceling=false;
+    _finishAndContinue();
   }
-  void _reset() { _generation++; _deadline?.cancel(); _settle?.cancel(); uuid=null; chatId=null; botId=null; sentId=null; paused=false; pausing=false; _buffer.clear(); files.clear(); selected.clear(); _saved.clear(); status=''; _changed(); }
+  void _finishAndContinue() {
+    _reset();
+    if (!client.ready) _queue.clear();
+    if (_queue.isNotEmpty && client.ready && !_disposed) {
+      final next = _queue.removeAt(0);
+      unawaited(request(next['uuid']!, itemTitle:next['title']!, itemCategory:next['category']!, itemVersion:next['version']!).catchError((_) {}));
+    }
+    _changed();
+  }
+  void _reset() { _generation++; _deadline?.cancel(); _settle?.cancel(); uuid=null; chatId=null; botId=null; sentId=null; paused=false; pausing=false; _buffer.clear(); files.clear(); selected.clear(); _saved.clear(); status=''; _logoutPending=false; }
   bool isSaved(int id) => _saved.contains(id);
   bool get isSaving => _saving.isNotEmpty;
+  Future<void> shareFile(SavedDownload item) async => _channel.invokeMethod<void>('shareFile', {'uri':item.uri,'name':item.name});
   Future<void> open(SavedDownload item) async => _channel.invokeMethod<void>('open', {'uri':item.uri,'name':item.name});
   Future<void> remove(SavedDownload item, {bool deleteFile = false}) async {
     if (deleteFile) await _channel.invokeMethod<void>('delete', {'uri':item.uri});
