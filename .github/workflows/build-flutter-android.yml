@@ -50,7 +50,8 @@ jobs:
           code=$?
           cat /tmp/flutter-test.log
           if [ "$code" -ne 0 ]; then
-            while IFS= read -r line; do echo "::error::$line"; done < /tmp/flutter-test.log
+            # GitHub keeps only a few annotations per step; report failures, not progress lines.
+            grep -E '\[E\]|EXCEPTION|Expected:|Actual:|The following|Error:|Some tests failed|Test failed' /tmp/flutter-test.log | head -8 | while IFS= read -r line; do echo "::error::$line"; done
             exit "$code"
           fi
       - name: Validate release compilation if signing is unconfigured
