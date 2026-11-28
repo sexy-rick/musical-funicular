@@ -1,0 +1,70 @@
+name: Package Alium GitHub release files
+on:
+  push:
+    branches: [arena/e09cf031-musical-funicular]
+    paths:
+      - '.github/workflows/package-alium-update-assets.yml'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Download and verify signed builds
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          gh run download 46138254428 --name Alium-Android-signed-release --dir "$RUNNER_TEMP/candidate"
+          gh run download 46125602276 --name Alium-Android-signed-release --dir "$RUNNER_TEMP/baseline"
+          test -f "$RUNNER_TEMP/candidate/app-release.apk"
+          test -f "$RUNNER_TEMP/baseline/app-release.apk"
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -name apksigner -type f | sort -V | tail -1)"
+          test -n "$APKSIGNER"
+          export PATH="$(dirname "$APKSIGNER"):$ANDROID_HOME/cmdline-tools/latest/bin:$PATH"
+          command -v apkanalyzer
+          mkdir -p "$RUNNER_TEMP/release-package"
+          printf '%s\n' 'Catalog and detail layout updates.' 'Telegram download queue and storage browsing.' 'Manual and automatic update checks.' 'Android device testing is pending.' > "$RUNNER_TEMP/release-package/RELEASE_NOTES.txt"
+          python3 android-app/scripts/create_update_metadata.py \
+            --apk "$RUNNER_TEMP/candidate/app-release.apk" \
+            --baseline "$RUNNER_TEMP/baseline/app-release.apk" \
+            --tag v0.1.1 \
+            --notes "$RUNNER_TEMP/release-package/RELEASE_NOTES.txt" \
+            --output "$RUNNER_TEMP/release-package/update.json"
+          cp "$RUNNER_TEMP/candidate/app-release.apk" "$RUNNER_TEMP/release-package/app-release.apk"
+          cat > "$RUNNER_TEMP/release-package/README.md" <<'TEXT'
+          # Alium releases
+
+          Official Android releases of Alium by Marketplace Trader are attached to this repository's GitHub Releases. Alium's application source is maintained separately.
+
+          The first updater-enabled version must be installed manually. Later compatible versions can be checked in Alium Settings or when the app opens. See RELEASE_GUIDE.md.
+
+          Support: https://t.me/minecraft_group_chat_friends · https://t.me/alchemisst
+          Website: https://marketplacetrader.great-site.net/
+
+          Minecraft is a trademark of its respective owners. Alium is an independent community project.
+          TEXT
+          unzip -p deliverables/alium-release-repository-updated.zip RELEASE_GUIDE.md > "$RUNNER_TEMP/release-package/RELEASE_GUIDE.md"
+          cat > "$RUNNER_TEMP/release-package/UPLOAD_INSTRUCTIONS.txt" <<'TEXT'
+          Alium v0.1.1 release files
+
+          Upload README.md and RELEASE_GUIDE.md to your public repository root, keeping the existing LICENSE.
+          Create a GitHub Release with the exact tag v0.1.1. Attach app-release.apk and update.json as release assets, and use RELEASE_NOTES.txt as the release notes. Do not upload private source or signing keys.
+          The metadata URL references this tag and exact APK filename. After publishing, verify the latest update.json URL and installation on an Android device.
+          Install this first updater-enabled APK manually with a compatible signing key. It is version code 2, so it will not offer an update to itself. Test the updater with a later, higher-version signed release.
+          TEXT
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: Alium-GitHub-release-files-v0.1.1
+          path: ${{ runner.temp }}/release-package/
+          if-no-files-found: error
+          retention-days: 14
