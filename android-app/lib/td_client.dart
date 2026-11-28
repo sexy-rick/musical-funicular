@@ -48,6 +48,7 @@ class TelegramClient extends ChangeNotifier {
   int? _apiId;
   String? _apiHash;
   Map<String, dynamic>? profile;
+  Map<String, dynamic>? profileInfo;
   String? avatarPath;
   static const configuredId = int.fromEnvironment('TELEGRAM_API_ID');
   static const configuredHash = String.fromEnvironment('TELEGRAM_API_HASH');
@@ -130,7 +131,7 @@ class TelegramClient extends ChangeNotifier {
             resendAt = DateTime.now().add(Duration(seconds:(info['timeout'] as num?)?.toInt() ?? 0));
           } else { canResendCode = false; resendAt = null; }
           if (state == 'authorizationStateReady') unawaited(_loadProfile());
-          if (state == 'authorizationStateClosed' || state == 'authorizationStateLoggingOut') { profile = null; avatarPath = null; }
+          if (state == 'authorizationStateClosed' || state == 'authorizationStateLoggingOut') { profile = null; profileInfo = null; avatarPath = null; }
           notifyListeners();
           if (state == 'authorizationStateWaitTdlibParameters') unawaited(_parameters());
         }
@@ -144,6 +145,11 @@ class TelegramClient extends ChangeNotifier {
       final user = await query({'@type':'getMe'});
       if (!ready || _closed) return;
       profile = user;
+      try {
+        final info = await query({'@type':'getUserFullInfo','user_id':user['id']});
+        if (ready && !_closed) profileInfo = info;
+      } catch (_) { /* Optional profile data. */ }
+      if (!ready || _closed) return;
       final photo = user['profile_photo'];
       if (photo is Map && photo['small'] is Map && photo['small']['id'] is num) {
         final file = await query({'@type':'downloadFile','file_id':photo['small']['id'],'priority':1,'offset':0,'limit':0,'synchronous':true});

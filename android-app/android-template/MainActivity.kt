@@ -18,12 +18,17 @@ import java.text.Normalizer
 import java.util.Locale
 
 class MainActivity: FlutterActivity() {
+    private var linkChannel: MethodChannel? = null
     private var pending: MethodChannel.Result? = null
     private var source: File? = null
     private var folderPending: MethodChannel.Result? = null
     private val storagePrefs by lazy { getSharedPreferences("alium_storage", MODE_PRIVATE) }
     override fun configureFlutterEngine(engine: FlutterEngine) {
         super.configureFlutterEngine(engine)
+        linkChannel = MethodChannel(engine.dartExecutor.binaryMessenger, "alium/links")
+        linkChannel?.setMethodCallHandler { call, result ->
+            if (call.method == "initial") result.success(intent?.dataString) else result.notImplemented()
+        }
         MethodChannel(engine.dartExecutor.binaryMessenger, "marketplace_trader/files").setMethodCallHandler { call, result ->
             when (call.method) {
                 "share" -> {
@@ -151,6 +156,11 @@ class MainActivity: FlutterActivity() {
                 else -> result.notImplemented()
             }
         }
+    }
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        intent.dataString?.let { linkChannel?.invokeMethod("link", it) }
     }
     private fun safeName(raw: String): String {
         val name = raw.substringAfterLast('/').substringAfterLast('\\').replace(Regex("[\\x00-\\x1f]"), "_").take(180).trim()

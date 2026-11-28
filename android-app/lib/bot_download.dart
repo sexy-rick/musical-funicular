@@ -94,7 +94,8 @@ class BotDownload extends ChangeNotifier {
         if (generation == _generation && files.isEmpty && !paused) { status='No file received. Open Telegram.'; _changed(); }
       });
     } catch (_) {
-      if (generation == _generation) { status='Could not contact the bot.'; _changed(); }
+      if (generation != _generation) return;
+      status='Could not contact the bot.'; _changed();
       rethrow;
     }
   }

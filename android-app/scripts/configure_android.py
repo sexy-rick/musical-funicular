@@ -5,6 +5,17 @@ root = Path(__file__).resolve().parents[1]
 p = root / 'android/app/src/main/AndroidManifest.xml'
 s = p.read_text().replace('<application', '<uses-permission android:name="android.permission.INTERNET" />\n    <application android:allowBackup="false"')
 s = s.replace('android:label="marketplace_trader"', 'android:label="Alium"')
+link_filter = """<meta-data android:name="flutter_deeplinking_enabled" android:value="false" />
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="alium" />
+            </intent-filter>
+            <intent-filter>"""
+if '<intent-filter>' not in s:
+    raise SystemExit('Could not configure deep links')
+s = s.replace('<intent-filter>', link_filter, 1)
 p.write_text(s)
 p = root / 'android/app/src/main/kotlin/net/greatsite/marketplace_trader/MainActivity.kt'
 p.parent.mkdir(parents=True, exist_ok=True)

@@ -23,9 +23,10 @@ class CatalogApi {
   CatalogApi({http.Client? client}) : _client = client ?? http.Client();
   final http.Client _client;
   static const base = 'mc-catalog-1474006216.aman-nsipai.workers.dev';
-  Future<CatalogPage> list({String query = '', String category = '', String updated = '', String sort = 'updated_desc', int page = 1}) async {
+  Future<CatalogPage> list({String query = '', String creator = '', String category = '', String updated = '', String sort = 'updated_desc', int page = 1}) async {
     final params = <String, String>{'page': '$page', 'sort': sort};
     if (query.trim().isNotEmpty) params['q'] = query.trim();
+    if (creator.isNotEmpty) params['creator'] = creator;
     if (category.isNotEmpty) params['cat'] = category;
     if (updated.isNotEmpty) params['updated'] = updated;
     final response = await _client.get(Uri.https(base, '/addons', params)).timeout(const Duration(seconds: 15));
@@ -35,6 +36,14 @@ class CatalogApi {
     final items = (data['items'] as List).whereType<Map<String, dynamic>>().map(CatalogItem.fromJson)
       .where((item) => RegExp(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', caseSensitive: false).hasMatch(item.uuid) && item.title.isNotEmpty).toList();
     return CatalogPage(items, (data['total'] as num).toInt());
+  }
+  Future<CatalogItem> detail(String uuid) async {
+    if (!RegExp(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$',caseSensitive:false).hasMatch(uuid)) throw const FormatException('Invalid item ID');
+    final response=await _client.get(Uri.https(base,'/addons/$uuid')).timeout(const Duration(seconds:15));
+    if(response.statusCode!=200) throw Exception('Item unavailable');
+    final data=jsonDecode(response.body);
+    if(data is! Map || data['item'] is! Map<String,dynamic>) throw const FormatException('Invalid item');
+    return CatalogItem.fromJson(data['item'] as Map<String,dynamic>);
   }
   void dispose() => _client.close();
 }
