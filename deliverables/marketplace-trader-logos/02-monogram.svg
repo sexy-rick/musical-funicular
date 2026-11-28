@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-labelledby="title desc">
+<title id="title">Marketplace Trader — Modular monogram</title><desc id="desc">A geometric M and T built as a single original mark.</desc>
+<rect width="1024" height="1024" fill="#281b11"/>
+<!-- One custom, squared-off monogram rather than a font. -->
+<path fill="#f8e9cb" d="M206 748V276h112l194 225 194-225h112v472H672V499L512 682 352 499v249z"/>
+<path fill="#c98b37" d="M396 276h232v92h-69v178l-47 54-47-54V368h-69z"/>
+</svg>

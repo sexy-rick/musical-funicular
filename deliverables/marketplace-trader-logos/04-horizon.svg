@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-labelledby="title desc">
+<title id="title">Marketplace Trader — Horizon</title><desc id="desc">A sun rising above a stepped, block-built landscape.</desc>
+<rect width="1024" height="1024" fill="#281b11"/>
+<circle cx="512" cy="360" r="125" fill="#c98b37"/>
+<path fill="#f8e9cb" d="M192 744V584h96v-96h96v-96h96v96h96v80h96v-80h96v96h96v160z"/>
+<path fill="#281b11" d="M192 672h152v-80h136v80h120v-48h128v48h136v72H192z"/>
+<path fill="#c98b37" d="M456 672h112v72H456z"/>
+</svg>

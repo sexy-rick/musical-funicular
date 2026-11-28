@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-labelledby="title desc">
+<title id="title">Marketplace Trader — Gateway</title><desc id="desc">A modular gateway opening onto a block-built horizon.</desc>
+<rect width="1024" height="1024" fill="#281b11"/>
+<!-- Monumental block-built arch, with a clear path in its negative space. -->
+<path fill="#f8e9cb" d="M224 784V392h64v-96h96v-64h256v64h96v96h64v392H624V512h-56v-56H456v56h-56v272H224z"/>
+<path fill="#c98b37" d="M224 704h176v80H224zm400 0h176v80H624zM384 232h256v64H384z"/>
+<path fill="#281b11" d="M288 392h48v48h-48zm400 0h48v48h-48z"/>
+<path fill="#c98b37" d="M456 632h112v152H456z"/>
+</svg>

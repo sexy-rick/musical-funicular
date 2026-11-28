@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-labelledby="title desc">
+<title id="title">Marketplace Trader — World block</title><desc id="desc">A block-shaped world with an open horizon.</desc>
+<rect width="1024" height="1024" fill="#281b11"/>
+<!-- A world rendered as three precisely joined, flat isometric faces. -->
+<path fill="#f8e9cb" d="M512 176 800 342 512 508 224 342z"/>
+<path fill="#c98b37" d="M224 358 504 520v328L224 686z"/>
+<path fill="#e8c991" d="M800 358 520 520v328l280-162z"/>
+<path fill="#281b11" d="M304 358l208-120 208 120-48 28-64-37-56 32-96-55-152 87z"/>
+<path fill="#281b11" d="M304 544l48 28v48l-48-28zm368-5 48-28v48l-48 28z"/>
+</svg>
