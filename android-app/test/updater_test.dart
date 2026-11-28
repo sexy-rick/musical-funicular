@@ -27,6 +27,33 @@ void main() {
       expect(()=>UpdateInfo.fromJson(value),throwsFormatException);
     }
   });
+  Map<String,dynamic> release(String tag,String published,{bool beta=false,bool draft=false,bool files=true}) {
+    final base='https://github.com/Alchemiisst/Alium/releases/download/$tag';
+    return {'tag_name':tag,'published_at':published,'prerelease':beta,'draft':draft,'assets':files ? [
+      {'name':'app-release.apk','state':'uploaded','browser_download_url':'$base/app-release.apk'},
+      {'name':'update.json','state':'uploaded','browser_download_url':'$base/update.json'},
+    ] : []};
+  }
+  test('selects the newest published beta and excludes drafts', () {
+    final value=selectPublishedRelease([
+      release('v0.1.0','2026-01-01T00:00:00Z'),
+      release('v0.2.0','2026-03-01T00:00:00Z',draft:true),
+      release('v0.1.2','2026-02-01T00:00:00Z',beta:true),
+    ]);
+    expect(value!.tag,'v0.1.2'); expect(value.prerelease,isTrue);
+    expect(value.metadataUrl,'https://github.com/Alchemiisst/Alium/releases/download/v0.1.2/update.json');
+    expect(selectPublishedRelease([]),isNull);
+  });
+  test('does not silently skip a newer release with missing files', () {
+    expect(()=>selectPublishedRelease([
+      release('v0.1.1','2026-01-01T00:00:00Z'),
+      release('v0.1.2','2026-02-01T00:00:00Z',beta:true,files:false),
+    ]),throwsA(isA<MissingUpdateAssets>()));
+    final unsafe=release('v0.1.2','2026-02-01T00:00:00Z');
+    (unsafe['assets'] as List)[0]['browser_download_url']='https://evil.example/app-release.apk';
+    expect(()=>selectPublishedRelease([unsafe]),throwsA(isA<MissingUpdateAssets>()));
+    expect(()=>selectPublishedRelease({'not':'a list'}),throwsFormatException);
+  });
   testWidgets('update dialog shows real versions and notes before install', (tester) async {
     SharedPreferences.setMockInitialValues({});
     final info=UpdateInfo.fromJson(metadata());

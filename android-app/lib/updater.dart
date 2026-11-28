@@ -9,33 +9,71 @@ import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 const updateChannel = MethodChannel('alium/updates');
-const updateMetadataUrl = 'https://github.com/Alchemiisst/Alium/releases/latest/download/update.json';
+const updateReleasesUrl = 'https://api.github.com/repos/Alchemiisst/Alium/releases?per_page=30';
 const _redirectHosts = {'github.com', 'release-assets.githubusercontent.com', 'objects.githubusercontent.com'};
 
 class UpdateInfo {
-  const UpdateInfo({required this.version, required this.code, required this.minSdk, required this.size, required this.hash, required this.url, required this.notes});
+  const UpdateInfo({required this.version, required this.code, required this.minSdk, required this.size, required this.hash, required this.url, required this.notes, this.prerelease=false});
   final String version, hash, url, notes;
   final int code, minSdk, size;
-  factory UpdateInfo.fromJson(Map<String, dynamic> value) {
+  final bool prerelease;
+  factory UpdateInfo.fromJson(Map<String, dynamic> value, {bool prerelease=false}) {
     final version=value['versionName'], code=value['versionCode'], sdk=value['minSdk'], size=value['size'], hash=value['sha256'], notes=value['notes'];
     final uri=Uri.tryParse('${value['apkUrl'] ?? ''}');
     if (value['schema'] != 1 || value['packageId'] != 'alium.amberlyst.com' || version is! String || version.isEmpty || version.length > 50 || code is! int || code <= 0 || sdk is! int || sdk < 1 || size is! int || size <= 0 || size > 250*1024*1024 || hash is! String || !RegExp(r'^[a-f0-9]{64}$').hasMatch(hash) || notes is! String || notes.length > 8000 || uri == null || uri.scheme != 'https' || uri.host.toLowerCase() != 'github.com' || uri.userInfo.isNotEmpty || uri.hasPort || uri.hasQuery || uri.hasFragment || uri.pathSegments.length!=6 || uri.pathSegments[0]!='Alchemiisst' || uri.pathSegments[1]!='Alium' || uri.pathSegments[2]!='releases' || uri.pathSegments[3]!='download' || !RegExp(r'^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$').hasMatch(uri.pathSegments[4]) || uri.pathSegments[5]!='app-release.apk') {
       throw const FormatException('Invalid update metadata');
     }
-    return UpdateInfo(version:version, code:code, minSdk:sdk, size:size, hash:hash, url:uri.toString(), notes:notes);
+    return UpdateInfo(version:version, code:code, minSdk:sdk, size:size, hash:hash, url:uri.toString(), notes:notes, prerelease:prerelease);
   }
+}
+
+class MissingUpdateAssets implements Exception {
+  const MissingUpdateAssets();
+}
+
+class UpdateRelease {
+  const UpdateRelease({required this.tag,required this.prerelease});
+  final String tag;
+  final bool prerelease;
+  String get metadataUrl => 'https://github.com/Alchemiisst/Alium/releases/download/$tag/update.json';
+  String get apkUrl => 'https://github.com/Alchemiisst/Alium/releases/download/$tag/app-release.apk';
+}
+
+/// Select the most recently published public release, including betas. A
+/// missing asset is an error, not evidence that the installed app is current.
+UpdateRelease? selectPublishedRelease(Object? response) {
+  if (response is! List) throw const FormatException('Invalid release listing');
+  final published=<Map<String,dynamic>>[];
+  for (final raw in response) {
+    if (raw is! Map<String,dynamic>) throw const FormatException('Invalid release');
+    if (raw['draft']==true) continue;
+    if (raw['draft']!=false || raw['prerelease'] is! bool || raw['published_at'] is! String || DateTime.tryParse(raw['published_at'] as String)==null) throw const FormatException('Invalid release');
+    published.add(raw);
+  }
+  if (published.isEmpty) return null;
+  published.sort((a,b)=>DateTime.parse(b['published_at'] as String).compareTo(DateTime.parse(a['published_at'] as String)));
+  final selected=published.first;
+  final tag=selected['tag_name'];
+  if (tag is! String || !RegExp(r'^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$').hasMatch(tag)) throw const FormatException('Invalid release tag');
+  final release=UpdateRelease(tag:tag,prerelease:selected['prerelease'] as bool);
+  final assets=selected['assets'];
+  if (assets is! List) throw const MissingUpdateAssets();
+  bool contains(String name,String url)=>assets.any((asset)=>asset is Map && asset['name']==name && asset['state']=='uploaded' && asset['browser_download_url']==url);
+  if (!contains('update.json',release.metadataUrl) || !contains('app-release.apk',release.apkUrl)) throw const MissingUpdateAssets();
+  return release;
 }
 
 class UpdateClient {
   final HttpClient _http=HttpClient()..connectionTimeout=const Duration(seconds:15);
   bool canceled=false;
-  Future<HttpClientResponse> _get(String url) async {
+  Future<HttpClientResponse> _get(String url, {bool api=false}) async {
     var uri=Uri.parse(url);
     for (var i=0; i<6; i++) {
-      if (uri.scheme!='https' || !_redirectHosts.contains(uri.host.toLowerCase()) || uri.userInfo.isNotEmpty || uri.hasPort) throw const FormatException('Untrusted update host');
+      if (uri.scheme!='https' || !(api ? uri.host.toLowerCase()=='api.github.com' : _redirectHosts.contains(uri.host.toLowerCase())) || uri.userInfo.isNotEmpty || uri.hasPort) throw const FormatException('Untrusted update host');
       final request=await _http.getUrl(uri).timeout(const Duration(seconds:15));
       request.followRedirects=false;
       request.headers.set(HttpHeaders.userAgentHeader,'Alium Android updater');
+      if (api) request.headers.set(HttpHeaders.acceptHeader,'application/vnd.github+json');
       final response=await request.close().timeout(const Duration(seconds:20));
       if ([301,302,303,307,308].contains(response.statusCode)) {
         final location=response.headers.value(HttpHeaders.locationHeader);
@@ -47,18 +85,24 @@ class UpdateClient {
     }
     throw const FormatException('Too many redirects');
   }
-  Future<UpdateInfo?> check() async {
-    final response=await _get(updateMetadataUrl);
-    if (response.statusCode==404) { await response.drain<void>(); return null; }
-    if (response.statusCode!=200) { await response.drain<void>(); throw const HttpException('Update check failed'); }
+  Future<Object?> _json(HttpClientResponse response, int limit) async {
+    if (response.statusCode!=200) { await response.drain<void>().timeout(const Duration(seconds:20)); throw const HttpException('Update check failed'); }
     final bytes=<int>[];
     await for (final chunk in response.timeout(const Duration(seconds:20))) {
+      if (bytes.length+chunk.length>limit) throw const FormatException('Update response too large');
       bytes.addAll(chunk);
-      if (bytes.length>65536) throw const FormatException('Update metadata too large');
     }
-    final data=jsonDecode(utf8.decode(bytes));
+    return jsonDecode(utf8.decode(bytes));
+  }
+  Future<UpdateInfo?> check() async {
+    final listing=await _json(await _get(updateReleasesUrl,api:true),2*1024*1024);
+    final release=selectPublishedRelease(listing);
+    if (release==null) return null;
+    final data=await _json(await _get(release.metadataUrl),65536);
     if (data is! Map<String,dynamic>) throw const FormatException('Invalid update metadata');
-    return UpdateInfo.fromJson(data);
+    final info=UpdateInfo.fromJson(data,prerelease:release.prerelease);
+    if (info.url!=release.apkUrl) throw const FormatException('Release asset mismatch');
+    return info;
   }
   Future<File> download(UpdateInfo info, void Function(double) onProgress) async {
     final cache=await getTemporaryDirectory();
@@ -117,6 +161,8 @@ Future<void> checkForUpdates(BuildContext context, {bool automatic=false}) async
     if (automatic && prefs.getInt('alium_update_remind_code')==info.code && now<(prefs.getInt('alium_update_remind_until') ?? 0)) return;
     if (!context.mounted) return;
     await showDialog<void>(context:context,barrierDismissible:false,builder:(_)=>UpdateDialog(info:info,installed:'${installed['versionName'] ?? ''}',client:client));
+  } on MissingUpdateAssets {
+    if (context.mounted && !automatic) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Release is missing update files.')));
   } catch (_) {
     if (context.mounted && !automatic) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Update check unavailable. Try again.')));
   } finally { client.close(); _checking=false; }
@@ -161,7 +207,7 @@ class _UpdateDialogState extends State<UpdateDialog> {
   @override Widget build(BuildContext context)=>PopScope(canPop:!busy&&!verifying,child:AlertDialog(
     title:const Text('Update available'),
     content:SingleChildScrollView(child:Column(mainAxisSize:MainAxisSize.min,crossAxisAlignment:CrossAxisAlignment.start,children:[
-      Text('New version: ${widget.info.version}'),Text('Installed version: ${widget.installed}'),const SizedBox(height:16),
+      Text('New version: ${widget.info.version}'),Text('Installed version: ${widget.installed}'),if(widget.info.prerelease) const Text('Beta release'),const SizedBox(height:16),
       Text('Release notes',style:Theme.of(context).textTheme.titleMedium),const SizedBox(height:8),Text(widget.info.notes.isEmpty?'No release notes.':widget.info.notes),
       if(busy) ...[const SizedBox(height:16),LinearProgressIndicator(value:progress,semanticsLabel:'Update download progress')],
       if(error!=null) ...[const SizedBox(height:8),Text(error!,style:TextStyle(color:Theme.of(context).colorScheme.error))],
