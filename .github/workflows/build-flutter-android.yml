@@ -37,8 +37,21 @@ jobs:
       - name: Analyze and test
         working-directory: android-app
         run: |
-          flutter analyze --no-fatal-infos
-          flutter test
+          set +e
+          flutter analyze --no-fatal-infos > /tmp/flutter-analyze.log 2>&1
+          code=$?
+          cat /tmp/flutter-analyze.log
+          if [ "$code" -ne 0 ]; then
+            while IFS= read -r line; do echo "::error::$line"; done < /tmp/flutter-analyze.log
+            exit "$code"
+          fi
+          flutter test > /tmp/flutter-test.log 2>&1
+          code=$?
+          cat /tmp/flutter-test.log
+          if [ "$code" -ne 0 ]; then
+            while IFS= read -r line; do echo "::error::$line"; done < /tmp/flutter-test.log
+            exit "$code"
+          fi
       - name: Build debug APK
         working-directory: android-app
         run: flutter build apk --debug
