@@ -20,79 +20,63 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-      - name: Download new APK
+      - name: Download signed candidate and baseline
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh run download 46142596059 --name Alium-Android-signed-release --dir "$RUNNER_TEMP/candidate"
+          set -eu
+          gh run download 46153381931 --name Alium-Android-signed-release --dir "$RUNNER_TEMP/candidate"
+          gh run download 46142596059 --name Alium-Android-signed-release --dir "$RUNNER_TEMP/baseline"
           test -f "$RUNNER_TEMP/candidate/app-release.apk"
-      - name: Download previous signed APK
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh run download 46138254428 --name Alium-Android-signed-release --dir "$RUNNER_TEMP/baseline"
           test -f "$RUNNER_TEMP/baseline/app-release.apk"
-      - name: Check Android SDK tools
+      - name: Verify APKs and create two release files
         run: |
           set -eu
           APKSIGNER="$(find "$ANDROID_HOME/build-tools" -name apksigner -type f | sort -V | tail -1)"
           test -n "$APKSIGNER"
-          test -x "$ANDROID_HOME/cmdline-tools/latest/bin/apkanalyzer"
-      - name: Verify APKs and create metadata
-        run: |
-          set -eu
-          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -name apksigner -type f | sort -V | tail -1)"
           export PATH="$(dirname "$APKSIGNER"):$ANDROID_HOME/cmdline-tools/latest/bin:$PATH"
-          test "$(apkanalyzer manifest version-code "$RUNNER_TEMP/candidate/app-release.apk")" = 3
-          test "$(apkanalyzer manifest version-name "$RUNNER_TEMP/candidate/app-release.apk")" = 0.1.2
+          test "$(apkanalyzer manifest version-code "$RUNNER_TEMP/candidate/app-release.apk")" = 4
+          test "$(apkanalyzer manifest version-name "$RUNNER_TEMP/candidate/app-release.apk")" = 0.1.0
           mkdir -p "$RUNNER_TEMP/release-package"
-          printf '%s\n' 'Update checks now include published beta pre-releases as well as stable releases.' 'Release files and signatures are checked before Android installation.' 'Android device testing is pending.' > "$RUNNER_TEMP/release-package/RELEASE_NOTES.txt"
+          printf '%s\n' 'Detail-page layout and catalog browsing improvements.' 'Improved handling of multi-file Telegram responses.' 'Android device testing is pending.' > "$RUNNER_TEMP/release-notes.txt"
           if ! python3 android-app/scripts/create_update_metadata.py \
             --apk "$RUNNER_TEMP/candidate/app-release.apk" \
             --baseline "$RUNNER_TEMP/baseline/app-release.apk" \
-            --tag v0.1.2 \
-            --notes "$RUNNER_TEMP/release-package/RELEASE_NOTES.txt" \
+            --tag v0.1.0 \
+            --notes "$RUNNER_TEMP/release-notes.txt" \
             --output "$RUNNER_TEMP/release-package/update.json" 2> "$RUNNER_TEMP/metadata-error"; then
             echo "::error::$(cat "$RUNNER_TEMP/metadata-error")"
             exit 1
           fi
-          cp "$RUNNER_TEMP/candidate/app-release.apk" "$RUNNER_TEMP/release-package/app-release.apk"
           cat > "$RUNNER_TEMP/release-package/README.md" <<'TEXT'
           # Alium releases
 
           Official Android releases of Alium by Marketplace Trader are attached to this repository's GitHub Releases. Alium's application source is maintained separately.
 
-          Version 0.1.2 checks both published beta and stable releases. Install this first beta-aware version manually. Later compatible versions can be checked in Settings or when the app opens. See RELEASE_GUIDE.md.
+          ## Install
+
+          Download the APK from a GitHub Release and install it through Android. An in-place update requires the same package and signing key. Do not uninstall simply to force an update: that can erase private session and history data.
+
+          ## Publish this beta
+
+          Create a pre-release with tag `v0.1.0` and attach the matching `app-release.apk` and `update.json` as release assets. The APK is supplied separately from this two-file ZIP. The displayed version is 0.1.0 but Android version code 4 is newer than the prior code 3. Do not overwrite an older release or upload private source, credentials or signing keys.
+
+          Alium's beta-aware updater checks published beta and stable releases. Both release assets are required. Users of the older stable-only updater need a manual install before beta updates can be discovered. Test a later higher-version release on Android to verify the complete update flow. The hash detects corruption, not a compromised release account.
 
           Support: https://t.me/minecraft_group_chat_friends · https://t.me/alchemisst
           Website: https://marketplacetrader.great-site.net/
 
           Minecraft is a trademark of its respective owners. Alium is an independent community project.
           TEXT
-          cat > "$RUNNER_TEMP/release-package/RELEASE_GUIDE.md" <<'TEXT'
-          # Alium beta release guide
-
-          This repository is for public distribution only. Never upload private source, signing keys, passwords, Telegram credentials or private repository history. GitHub creates source archives from tags, so repository contents and tags must be public-safe. Keep the existing LICENSE and review applicable third-party licenses.
-
-          Install the first beta-aware APK manually. It needs the same application ID and signing key as your installed Alium, and a higher version code. Do not uninstall just to force installation; uninstalling may erase private session and history data. Android requires user permission and confirmation.
-
-          Each published release must contain app-release.apk and update.json as release assets, not merely files in the repository root. The tag and filenames must exactly match update.json. Alium selects the most recently published stable or beta release among the first 30 returned by GitHub; drafts are ignored. Publish versions in increasing order. A release missing either file causes an update-check error. Automatic checks are limited to once per 24 hours; Settings also has a manual check. GitHub API rate limits can prevent checks temporarily.
-
-          For each later release, build a higher-version APK with the same signing key. In the private source workspace run android-app/scripts/create_update_metadata.py with --apk, --baseline, --tag and --notes, using Android SDK apkanalyzer and apksigner. This compares the signed baseline and candidate and generates metadata from the exact APK. Review it and manually attach both files to a draft release before publishing. Protect your GitHub account: a SHA-256 hash beside an APK detects corruption but does not authenticate compromised release metadata. Signing-key rotation is not supported by the current exact-certificate check.
-
-          Test on a real Android device, including permission, installer and preserved data. This version will not update itself; a later higher-version release is needed to test the in-app flow. GitHub Actions artifacts expire and are not a permanent public download location.
-          TEXT
-          cat > "$RUNNER_TEMP/release-package/UPLOAD_INSTRUCTIONS.txt" <<'TEXT'
-          Alium v0.1.2 beta release files
-
-          Upload README.md and RELEASE_GUIDE.md to your public repository root, keeping the existing LICENSE.
-          Create a new GitHub Release with the exact tag v0.1.2 and mark it as a pre-release. Attach app-release.apk and update.json as release assets, and use RELEASE_NOTES.txt as the release notes. Do not upload private source or signing keys.
-          The metadata references this exact tag and APK filename. Do not reuse or overwrite the v0.1.1 release. Verify the release and installation on Android after publication.
-          The old v0.1.1 app cannot discover beta updates. Manually install this same-key, higher-version APK first. Its version code is 3, so a still later signed release is needed to test updating in-app.
-          TEXT
+          python3 - "$RUNNER_TEMP/release-package" <<'PY'
+          import os, sys
+          names = sorted(os.listdir(sys.argv[1]))
+          if names != ['README.md', 'update.json']:
+              raise SystemExit(f'Unexpected release files: {names}')
+          PY
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: Alium-GitHub-beta-release-files-v0.1.2
+          name: Alium-GitHub-two-release-files-v0.1.0
           path: ${{ runner.temp }}/release-package/
           if-no-files-found: error
           retention-days: 14
