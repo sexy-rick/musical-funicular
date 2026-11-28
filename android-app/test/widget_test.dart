@@ -182,7 +182,14 @@ void main() {
     await tester.tap(find.text('A catalog item')); await tester.pumpAndSettle();
     expect(find.text('A catalog item'),findsWidgets);
     tester.state<NavigatorState>(find.byType(Navigator)).pop(); await tester.pumpAndSettle();
+    expect(api.pages,[1]);
+    await tester.scrollUntilVisible(find.text('A catalog item'),300,scrollable:find.byType(Scrollable).first);
     expect(find.text('A catalog item'),findsOneWidget);
+    await tester.scrollUntilVisible(find.text('Next'),300,scrollable:find.byType(Scrollable).first);
+    await tester.tap(find.text('Next')); await tester.pumpAndSettle();
+    expect(api.pages,[1,2]);
+    await tester.scrollUntilVisible(find.text('A later item'),300,scrollable:find.byType(Scrollable).first);
+    expect(find.text('A later item'),findsOneWidget);
     await tester.pumpWidget(const SizedBox.shrink()); downloads.dispose(); telegram.dispose(); api.dispose();
   });
 
