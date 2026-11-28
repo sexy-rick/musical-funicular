@@ -23,7 +23,7 @@ class FakeTelegram extends TelegramClient {
     }
   }
 }
-Map<String,dynamic> document(int id) => {'@type':'updateNewMessage','message':{'id':11,'chat_id':1,'sender_id':{'@type':'messageSenderUser','user_id':2},'content':{'@type':'messageDocument','document':{'file_name':'pack.mcpack','document':{'id':id,'size':100,'local':{'downloaded_size':0}}}}}};
+Map<String,dynamic> document(int id,{int messageId=11,String name='pack.mcpack'}) => {'@type':'updateNewMessage','message':{'id':messageId,'chat_id':1,'sender_id':{'@type':'messageSenderUser','user_id':2},'content':{'@type':'messageDocument','document':{'file_name':name,'document':{'id':id,'size':100,'local':{'downloaded_size':0}}}}}};
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   setUp(() => SharedPreferences.setMockInitialValues({}));
@@ -129,6 +129,46 @@ void main() {
     fail=true; await downloads.refreshFiles();
     expect(downloads.visibleFiles,hasLength(1)); expect(downloads.scanError,isNotNull);
     downloads.dispose(); await client.stream.close();
+  });
+
+  testWidgets('two documents save independently before the next request', (tester) async {
+    var sequence=0;
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(const MethodChannel('marketplace_trader/files'), (call) async => call.method=='save' ? 'content://downloads/${++sequence}' : null);
+    final client=FakeTelegram(); final downloads=BotDownload(client);
+    await downloads.request('12345678-1234-1234-1234-123456789abc',itemTitle:'Mashup');
+    await downloads.request('87654321-1234-1234-1234-123456789abc');
+    client.stream.add(document(9,messageId:11,name:'world.mcworld')); await tester.pump();
+    client.stream.add({'@type':'updateFile','file':{'id':9,'size':100,'local':{'path':'/private/world','downloaded_size':100,'is_downloading_completed':true}}});
+    await tester.pump(); await tester.pump();
+    expect(downloads.history,hasLength(1));
+    await tester.pump(const Duration(seconds:14));
+    client.stream.add(document(10,messageId:12,name:'pack.mcpack')); await tester.pump();
+    await tester.pump(const Duration(seconds:2));
+    expect(client.requests.where((q)=>q['@type']=='sendBotStartMessage'),hasLength(1));
+    expect(downloads.allDownloaded,isFalse);
+    client.stream.add({'@type':'updateFile','file':{'id':10,'size':100,'local':{'path':'/private/pack','downloaded_size':100,'is_downloading_completed':true}}});
+    await tester.pump(); await tester.pump();
+    expect(downloads.history.map((e)=>e.name).toSet(),{'world.mcworld','pack.mcpack'});
+    expect(downloads.allDownloaded,isTrue);
+    await tester.pump(const Duration(seconds:16)); await tester.pump();
+    expect(client.requests.where((q)=>q['@type']=='sendBotStartMessage'),hasLength(2));
+    await downloads.cancelRequest(); downloads.dispose(); await client.stream.close();
+  });
+  testWidgets('distinct messages sharing a TDLib file ID are not discarded', (tester) async {
+    var sequence=0;
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(const MethodChannel('marketplace_trader/files'), (call) async => call.method=='save' ? 'content://downloads/${++sequence}' : null);
+    final client=FakeTelegram(); final downloads=BotDownload(client);
+    await downloads.request('12345678-1234-1234-1234-123456789abc');
+    client.stream.add(document(9,messageId:11,name:'first.mcpack'));
+    client.stream.add(document(9,messageId:12,name:'second.mcpack'));
+    client.stream.add(document(9,messageId:12,name:'second.mcpack'));
+    await tester.pump();
+    expect(downloads.files,hasLength(2));
+    client.stream.add({'@type':'updateFile','file':{'id':9,'size':100,'local':{'path':'/private/pack','downloaded_size':100,'is_downloading_completed':true}}});
+    await tester.pump(); await tester.pump(); await tester.pump();
+    expect(downloads.history.map((e)=>e.name).toSet(),{'first.mcpack','second.mcpack'});
+    expect(downloads.allDownloaded,isTrue);
+    await tester.pump(const Duration(seconds:16)); downloads.dispose(); await client.stream.close();
   });
 
 }

@@ -6,6 +6,14 @@ import 'package:marketplace_trader/bot_download.dart';
 import 'package:marketplace_trader/td_client.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+class FakeCatalogApi extends CatalogApi {
+  final pages=<int>[];
+  @override Future<CatalogPage> list({String query='',String creator='',String category='',String updated='',String sort='updated_desc',int page=1}) async {
+    pages.add(page);
+    return CatalogPage([CatalogItem(uuid:'87654321-1234-1234-1234-123456789abc',title:page==1?'A catalog item':'A later item')],25);
+  }
+}
+
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
   testWidgets('missing thumbnail has a readable fallback', (tester) async {
@@ -122,7 +130,7 @@ void main() {
     final telegram=TelegramClient(); final downloads=BotDownload(telegram);
     const item=CatalogItem(uuid:'12345678-1234-1234-1234-123456789abc',title:'Example');
     await tester.pumpWidget(MaterialApp(home:Scaffold(body:DownloadPanel(item:item,telegram:telegram,downloads:downloads))));
-    expect(find.text('Open in Telegram'),findsOneWidget);
+    expect(find.text('Download'),findsOneWidget);
     expect(find.text('Download in Alium'),findsOneWidget);
     expect(find.text('Share'),findsNothing);
     telegram.state='authorizationStateReady';
@@ -130,8 +138,51 @@ void main() {
     await tester.pump();
     expect(find.text('Download'),findsOneWidget);
     expect(find.text('Share'),findsOneWidget);
-    expect(find.text('Open in Telegram'),findsNothing);
+    expect(find.text('Download in Alium'),findsNothing);
     await tester.pumpWidget(const SizedBox.shrink()); downloads.dispose(); telegram.dispose();
+  });
+
+  testWidgets('signed-out buttons have requested contrast and actions', (tester) async {
+    final telegram=TelegramClient(); final downloads=BotDownload(telegram);
+    const item=CatalogItem(uuid:'12345678-1234-1234-1234-123456789abc',title:'Example');
+    for(final brightness in [Brightness.light,Brightness.dark]) {
+      await tester.pumpWidget(MaterialApp(theme:ThemeData(brightness:brightness),home:Scaffold(body:DownloadPanel(item:item,telegram:telegram,downloads:downloads))));
+      final first=tester.widget<FilledButton>(find.ancestor(of:find.text('Download'),matching:find.byType(FilledButton)));
+      final second=tester.widget<FilledButton>(find.ancestor(of:find.text('Download in Alium'),matching:find.byType(FilledButton)));
+      final dark=first.style!.foregroundColor!.resolve({})!; final light=second.style!.foregroundColor!.resolve({})!;
+      final bg1=first.style!.backgroundColor!.resolve({})!; final bg2=second.style!.backgroundColor!.resolve({})!;
+      double contrast(Color a,Color b){final x=a.computeLuminance(),y=b.computeLuminance();return ((x>y?x:y)+0.05)/((x<y?x:y)+0.05);}
+      expect(dark.computeLuminance(),lessThan(light.computeLuminance()));
+      expect(contrast(dark,bg1),greaterThanOrEqualTo(4.5)); expect(contrast(light,bg2),greaterThanOrEqualTo(4.5));
+    }
+    await tester.pumpWidget(const SizedBox.shrink()); downloads.dispose(); telegram.dispose();
+  });
+  testWidgets('transfer controls are above download and share', (tester) async {
+    final telegram=TelegramClient()..state='authorizationStateReady'; final downloads=BotDownload(telegram);
+    const item=CatalogItem(uuid:'12345678-1234-1234-1234-123456789abc',title:'Example');
+    downloads.uuid=item.uuid; downloads.status='Downloading…';
+    downloads.files[11]=BotFile(id:9,messageId:11,name:'world.mcworld',bytes:100,downloaded:50); downloads.selected.add(11);
+    await tester.pumpWidget(MaterialApp(home:Scaffold(body:DownloadPanel(item:item,telegram:telegram,downloads:downloads))));
+    expect(tester.getRect(find.text('world.mcworld')).top,lessThan(tester.getRect(find.text('Download')).top));
+    expect(tester.getRect(find.text('Pause')).top,lessThan(tester.getRect(find.text('Download')).top));
+    expect(tester.getRect(find.text('Cancel')).top,lessThan(tester.getRect(find.text('Share')).top));
+    await tester.pumpWidget(const SizedBox.shrink()); downloads.dispose(); telegram.dispose();
+  });
+  testWidgets('more like this expands the full catalog within detail', (tester) async {
+    final telegram=TelegramClient(); final downloads=BotDownload(telegram); final api=FakeCatalogApi();
+    const item=CatalogItem(uuid:'12345678-1234-1234-1234-123456789abc',title:'Original item');
+    await tester.pumpWidget(MaterialApp(home:DetailScreen(item:item,telegram:telegram,downloads:downloads,catalogApi:api)));
+    expect(find.text('KEEP EXPLORING'),findsNothing);
+    await tester.scrollUntilVisible(find.text('More like this'),300,scrollable:find.byType(Scrollable).first);
+    await tester.tap(find.text('More like this')); await tester.pump(); await tester.pump();
+    expect(api.pages,[1]);
+    await tester.scrollUntilVisible(find.text('A catalog item'),300,scrollable:find.byType(Scrollable).first);
+    expect(find.text('A catalog item'),findsOneWidget);
+    await tester.tap(find.text('A catalog item')); await tester.pumpAndSettle();
+    expect(find.text('A catalog item'),findsWidgets);
+    await tester.pageBack(); await tester.pumpAndSettle();
+    expect(find.text('A catalog item'),findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink()); downloads.dispose(); telegram.dispose(); api.dispose();
   });
 
 }

@@ -27,14 +27,16 @@ String displayDownloadName(String name) {
 }
 
 class BotFile {
-  BotFile({required this.id, required this.name, this.bytes = 0, this.path = '', this.complete = false, this.downloaded = 0});
+  BotFile({required this.id, required this.name, this.messageId, this.bytes = 0, this.path = '', this.complete = false, this.downloaded = 0});
   final int id;
+  final int? messageId;
+  int get key => messageId ?? id;
   final String name, path;
   final int bytes, downloaded;
   final bool complete;
   BotFile withUpdate(Map<String, dynamic> f) {
     final local = (f['local'] is Map ? f['local'] : {}) as Map;
-    return BotFile(id: id, name: name, bytes: (f['size'] as num?)?.toInt() ?? bytes,
+    return BotFile(id: id, name: name, messageId: messageId, bytes: (f['size'] as num?)?.toInt() ?? bytes,
       path: (local['path'] ?? '').toString(), complete: local['is_downloading_completed'] == true,
       downloaded: (local['downloaded_size'] as num?)?.toInt() ?? 0);
   }
@@ -59,6 +61,7 @@ class BotDownload extends ChangeNotifier {
   final selected = <int>{};
   final _saving = <int>{};
   final _saved = <int>{};
+  final _attempts = <int,int>{};
   final history = <SavedDownload>[];
   final _discovered = <SavedDownload>[];
   final unavailable = <String>{};
@@ -171,7 +174,11 @@ class BotDownload extends ChangeNotifier {
     if (_canceling) return;
     if (event['@type'] == 'updateFile' && event['file'] is Map<String,dynamic>) {
       final file = event['file'] as Map<String,dynamic>; final id = (file['id'] as num?)?.toInt();
-      if (id != null && files.containsKey(id)) { files[id] = files[id]!.withUpdate(file); _changed(); if (!paused && files[id]!.complete && selected.contains(id)) unawaited(_save(id)); }
+      if (id != null) {
+        final matches=files.entries.where((entry)=>entry.value.id==id).map((entry)=>entry.key).toList();
+        for (final key in matches) { files[key]=files[key]!.withUpdate(file); if (!paused && files[key]!.complete && selected.contains(key)) unawaited(_save(key)); }
+        if (matches.isNotEmpty) _changed();
+      }
     }
     if (uuid == null || event['@type'] != 'updateNewMessage' || event['message'] is! Map<String,dynamic>) return;
     final message = event['message'] as Map<String,dynamic>;
@@ -186,11 +193,13 @@ class BotDownload extends ChangeNotifier {
     if (content is! Map || content['@type'] != 'messageDocument') return;
     final document = content['document']; if (document is! Map) return;
     final file = document['document']; if (file is! Map<String,dynamic> || file['id'] is! num) return;
-    final id = (file['id'] as num).toInt(); if (files.containsKey(id)) return;
+    final id = (file['id'] as num).toInt();
+    final messageId=(message['id'] as num).toInt();
+    if (files.containsKey(messageId)) return;
     _settle?.cancel();
-    files[id] = BotFile(id:id, name:(document['file_name'] ?? 'download').toString()).withUpdate(file);
+    files[messageId] = BotFile(id:id,messageId:messageId,name:(document['file_name'] ?? 'download').toString()).withUpdate(file);
     status = paused ? 'Paused' : 'Downloading…'; _changed();
-    if (!paused) unawaited(_autoDownload(id));
+    if (!paused) unawaited(_autoDownload(messageId));
   }
   Future<void> _autoDownload(int id) async {
     final generation = _generation;
@@ -199,13 +208,15 @@ class BotDownload extends ChangeNotifier {
   Future<void> download(int id) async {
     if (!files.containsKey(id) || uuid == null) throw TdException('File no longer available.');
     final generation = _generation;
+    final transferId=files[id]!.id;
+    final attempt=(_attempts[id] ?? 0)+1; _attempts[id]=attempt;
     selected.add(id); _changed();
     try {
       // TDLib priority 32 is the highest queue priority, not a network speed guarantee.
-      final response = await client.query({'@type':'downloadFile','file_id':id,'priority':32,'offset':0,'limit':0,'synchronous':false});
-      if (generation != _generation || paused || !selected.contains(id)) return;
+      final response = await client.query({'@type':'downloadFile','file_id':transferId,'priority':32,'offset':0,'limit':0,'synchronous':false});
+      if (generation != _generation || _attempts[id]!=attempt || paused || !selected.contains(id)) return;
       if (files.containsKey(id)) { if (!files[id]!.complete) files[id] = files[id]!.withUpdate(response); _changed(); if (files[id]!.complete) await _save(id); }
-    } catch (_) { if (generation == _generation) { selected.remove(id); _changed(); } rethrow; }
+    } catch (_) { if (generation != _generation || _attempts[id]!=attempt) return; selected.remove(id); _changed(); rethrow; }
   }
   Future<void> _save(int id) async {
     final file = files[id];
@@ -234,11 +245,12 @@ class BotDownload extends ChangeNotifier {
   Future<void> pause() async {
     if (uuid == null || paused) return;
     paused = true; pausing = true; _deadline?.cancel(); _settle?.cancel(); status='Paused'; _changed();
-    for (final id in selected.toList()) {
-      if (!_saved.contains(id) && !_saving.contains(id)) {
-        try { await client.query({'@type':'cancelDownloadFile','file_id':id,'only_if_pending':false}); } catch (_) {}
-        selected.remove(id);
-      }
+    final pending=selected.where((key)=>!_saved.contains(key) && !_saving.contains(key)).toList();
+    final transferIds=pending.map((key)=>files[key]?.id).whereType<int>().toSet();
+    for (final key in pending) { _attempts[key]=(_attempts[key] ?? 0)+1; }
+    selected.removeAll(pending);
+    for (final id in transferIds) {
+      try { await client.query({'@type':'cancelDownloadFile','file_id':id,'only_if_pending':false}); } catch (_) {}
     }
     pausing = false; _changed();
   }
@@ -253,7 +265,7 @@ class BotDownload extends ChangeNotifier {
     if (_saving.isNotEmpty) throw TdException('Wait until saving finishes.');
     if (_canceling || uuid == null) return;
     _canceling=true;
-    final ids=selected.toList();
+    final ids=selected.map((key)=>files[key]?.id).whereType<int>().toSet();
     // Invalidate pending callbacks immediately, but do not send the next bot
     // request until all cancellation queries have returned.
     _generation++; _deadline?.cancel(); _settle?.cancel();
@@ -271,7 +283,7 @@ class BotDownload extends ChangeNotifier {
     }
     _changed();
   }
-  void _reset() { _generation++; _deadline?.cancel(); _settle?.cancel(); uuid=null; chatId=null; botId=null; sentId=null; paused=false; pausing=false; _buffer.clear(); files.clear(); selected.clear(); _saved.clear(); status=''; _logoutPending=false; }
+  void _reset() { _generation++; _deadline?.cancel(); _settle?.cancel(); uuid=null; chatId=null; botId=null; sentId=null; paused=false; pausing=false; _buffer.clear(); files.clear(); selected.clear(); _saved.clear(); _attempts.clear(); status=''; _logoutPending=false; }
   bool isSaved(int id) => _saved.contains(id);
   bool get isSaving => _saving.isNotEmpty;
   Future<void> shareFile(SavedDownload item) async => _channel.invokeMethod<void>('shareFile', {'uri':item.uri,'name':item.name});
