@@ -52,6 +52,25 @@ jobs:
             while IFS= read -r line; do echo "::error::$line"; done < /tmp/flutter-test.log
             exit "$code"
           fi
+      - name: Validate release compilation if signing is unconfigured
+        working-directory: android-app
+        env:
+          ALIUM_KEYSTORE_BASE64: ${{ secrets.ALIUM_KEYSTORE_BASE64 }}
+          ALIUM_KEYSTORE_PASSWORD: ${{ secrets.ALIUM_KEYSTORE_PASSWORD }}
+          ALIUM_KEY_ALIAS: ${{ secrets.ALIUM_KEY_ALIAS }}
+          ALIUM_KEY_PASSWORD: ${{ secrets.ALIUM_KEY_PASSWORD }}
+        run: |
+          set -eu
+          if [ -z "$ALIUM_KEYSTORE_BASE64" ] || [ -z "$ALIUM_KEYSTORE_PASSWORD" ] || [ -z "$ALIUM_KEY_ALIAS" ] || [ -z "$ALIUM_KEY_PASSWORD" ]; then
+            echo 'Compiling with a disposable validation key; this APK will not be uploaded.'
+            export ALIUM_KEYSTORE_PATH="$RUNNER_TEMP/alium-validation.jks"
+            export ALIUM_KEYSTORE_PASSWORD=validation-only-password
+            export ALIUM_KEY_ALIAS=validation
+            export ALIUM_KEY_PASSWORD=validation-only-password
+            trap 'rm -f "$ALIUM_KEYSTORE_PATH" build/app/outputs/flutter-apk/app-release.apk' EXIT
+            keytool -genkeypair -keystore "$ALIUM_KEYSTORE_PATH" -storepass "$ALIUM_KEYSTORE_PASSWORD" -keypass "$ALIUM_KEY_PASSWORD" -alias "$ALIUM_KEY_ALIAS" -dname 'CN=Temporary validation only' -keyalg RSA -keysize 2048 -validity 2 -noprompt >/dev/null 2>&1
+            flutter build apk --release
+          fi
       - name: Build signed release APK
         working-directory: android-app
         env:

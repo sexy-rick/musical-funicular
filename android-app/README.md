@@ -26,3 +26,5 @@ For `.mcpack`, `.mcworld`, `.mcaddon` and `.mctemplate`, Alium sends a package-t
 ## Build and testing
 
 The workflow generates the Android project, installs checksum-pinned TDLib binaries, runs Flutter analysis/tests, builds a signed release APK and uploads it for 14 days. Inspect `scripts/tdjson-manifest.json` and audit native binaries and third-party licenses before distribution. Production distribution requires privacy, security, Telegram terms and content-rights review. No Worker, website, bot, database, or migration deployment is performed. Real Android/Telegram/Minecraft device tests remain required.
+
+If signing secrets are missing, CI may compile using a disposable validation-only key, immediately discard that APK/key, and then fail the release step. That check is not a release artifact and cannot be used to sign future updates.
