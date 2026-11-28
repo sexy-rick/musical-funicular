@@ -8,6 +8,7 @@ import 'package:ffi/ffi.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:device_info_plus/device_info_plus.dart';
 
 // TDLib's documented JSON interface. A receive isolate prevents blocking Flutter.
 typedef _CreateNative = Int32 Function();
@@ -44,6 +45,10 @@ class TelegramClient extends ChangeNotifier {
   String? failure;
   int? _apiId;
   String? _apiHash;
+  Map<String, dynamic>? profile;
+  String? avatarPath;
+  static const configuredId = int.fromEnvironment('TELEGRAM_API_ID');
+  static const configuredHash = String.fromEnvironment('TELEGRAM_API_HASH');
   bool initialized = false;
   bool _closed = false;
   Stream<Map<String, dynamic>> get events => _events.stream;
@@ -54,8 +59,8 @@ class TelegramClient extends ChangeNotifier {
     failure = null;
     final storedId = int.tryParse(await _store.read(key: 'telegram_api_id') ?? '');
     final storedHash = await _store.read(key: 'telegram_api_hash');
-    _apiId = apiId ?? storedId;
-    _apiHash = apiHash ?? storedHash;
+    _apiId = apiId ?? (configuredId > 0 ? configuredId : storedId);
+    _apiHash = apiHash ?? (configuredHash.isNotEmpty ? configuredHash : storedHash);
     if (_apiId == null || _apiId! <= 0 || _apiHash == null || !RegExp(r'^[0-9a-fA-F]{32}$').hasMatch(_apiHash!)) {
       state = 'needsCredentials'; notifyListeners(); return;
     }
@@ -87,12 +92,14 @@ class TelegramClient extends ChangeNotifier {
         key = base64Encode(List<int>.generate(32, (_) => random.nextInt(256)));
         await _store.write(key: 'td_database_key', value: key);
       }
+      var model = 'Android';
+      try { final info = await DeviceInfoPlugin().androidInfo; model = 'Alium · ${info.manufacturer} ${info.model}'; } catch (_) {}
       await query({'@type': 'setTdlibParameters', 'use_test_dc': false,
         'database_directory': tdDir.path, 'files_directory': tdDir.path,
         'database_encryption_key': key, 'use_file_database': true,
         'use_chat_info_database': true, 'use_message_database': true,
         'use_secret_chats': false, 'api_id': _apiId, 'api_hash': _apiHash,
-        'system_language_code': 'en', 'device_model': 'Android',
+        'system_language_code': 'en', 'device_model': model,
         'system_version': Platform.operatingSystemVersion, 'application_version': '0.1.0'});
     } catch (_) { state = 'failed'; failure = 'Could not initialize Telegram storage.'; notifyListeners(); }
   }
@@ -115,6 +122,8 @@ class TelegramClient extends ChangeNotifier {
         if (auth is Map<String, dynamic>) {
           state = (auth['@type'] ?? '').toString();
           hint = (auth['password_hint'] ?? '').toString();
+          if (state == 'authorizationStateReady') unawaited(_loadProfile());
+          if (state == 'authorizationStateClosed' || state == 'authorizationStateLoggingOut') { profile = null; avatarPath = null; }
           notifyListeners();
           if (state == 'authorizationStateWaitTdlibParameters') unawaited(_parameters());
         }
@@ -123,6 +132,19 @@ class TelegramClient extends ChangeNotifier {
     } catch (_) { /* Ignore invalid native messages; never log Telegram content. */ }
   }
 
+  Future<void> _loadProfile() async {
+    try {
+      final user = await query({'@type':'getMe'});
+      profile = user;
+      final photo = user['profile_photo'];
+      if (photo is Map && photo['small'] is Map && photo['small']['id'] is num) {
+        final file = await query({'@type':'downloadFile','file_id':photo['small']['id'],'priority':1,'offset':0,'limit':0,'synchronous':true});
+        final local = file['local'];
+        if (local is Map && local['is_downloading_completed'] == true) avatarPath = local['path']?.toString();
+      }
+      if (!_closed) notifyListeners();
+    } catch (_) { if (!_closed) notifyListeners(); }
+  }
   Future<Map<String, dynamic>> query(Map<String, dynamic> value) async {
     if (!initialized) throw TdException('Telegram is not initialized.');
     final id = ++_sequence;

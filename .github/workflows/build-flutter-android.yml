@@ -1,4 +1,4 @@
-name: Build Flutter Android test APK
+name: Build Alium Android test APK
 on:
   workflow_dispatch:
   push:
@@ -54,10 +54,21 @@ jobs:
           fi
       - name: Build debug APK
         working-directory: android-app
-        run: flutter build apk --debug
+        env:
+          TELEGRAM_API_ID: ${{ secrets.ALIUM_TELEGRAM_API_ID }}
+          TELEGRAM_API_HASH: ${{ secrets.ALIUM_TELEGRAM_API_HASH }}
+        run: |
+          if [ -n "$TELEGRAM_API_ID" ] && [ -n "$TELEGRAM_API_HASH" ]; then
+            flutter build apk --debug --dart-define="TELEGRAM_API_ID=$TELEGRAM_API_ID" --dart-define="TELEGRAM_API_HASH=$TELEGRAM_API_HASH"
+          elif [ -z "$TELEGRAM_API_ID" ] && [ -z "$TELEGRAM_API_HASH" ]; then
+            flutter build apk --debug
+          else
+            echo '::error::Both Telegram application values must be configured together.'
+            exit 1
+          fi
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: Marketplace-Trader-Android-test
+          name: Alium-Android-test
           path: android-app/build/app/outputs/flutter-apk/app-debug.apk
           if-no-files-found: error
           retention-days: 14

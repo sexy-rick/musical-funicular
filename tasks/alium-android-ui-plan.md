@@ -1,0 +1,107 @@
+# Plan — Alium Flutter Android redesign
+
+**Status: planning and UI direction only.** The user reports the app is working as planned and wants final touches, not a rebuild. Preserve working behavior, inspect the actual current app before changing it, and do only agreed deltas. The workspace currently contains an earlier experimental Flutter/TDLib snapshot (successful GitHub Actions build for commit `6a083a2`); it has not been independently verified on a live device. Establish which version the user tested before implementation: local Git shows base `3930c33` with project files untracked, while the remote branch previously reported `1129a15`. Do not reset, clean or overwrite this workspace. No app code, logo assets, bot, database, Worker, APK, GitHub workflow or deployment has been changed in this planning step.
+
+## Desired outcome
+
+- App name **Alium**, with top branding **Alium** / **by Marketplace Trader**. Android application ID exactly **`alium.amberlyst.com`**, as supplied (this is an Android package identifier, not a website URL). The conventional reverse-domain spelling would be `com.amberlyst.alium`, but do not silently substitute it; user explicitly gave the former.
+- Original recognizable **allium flower** launcher icon and botanical color family, professionally crafted and readable when small. Native-feeling Flutter Material 3 Expressive styling: no AI button/AI icons, sparkles or decorative symbols, neon AI colors, gradients, glow, or image-based UI. Choose an understated flower-inspired accent with appropriate light/dark contrasts; a muted lavender/plum or natural foliage accent is a design candidate, not the bright purple/pink AI treatment rejected earlier.
+- Respect the earlier visual preferences, channel and support links, $0 budget, accessibility, reduced motion and existing web/catalog functionality. Native functional Material icons (search, settings, download) are allowed; do not use decorative emoji or AI motifs.
+
+## UI direction and structure
+
+### Visual foundation
+
+Create shared Flutter tokens for light and dark color schemes, contrast, spacing, typography, shapes and motion. Solid backgrounds and surfaces, layered through outlines and surface tones rather than shadows/glow. Use a consistent, distinctive rounded shape family, visible active states and high-contrast text. App flower icon is independent of the user's Telegram profile photo. Generate/commission one original icon asset only after build authorization; ensure square and adaptive-icon safe zones, foreground/background, Android monochrome themed icon, launcher/notification/splash needs, no text so it reads at small sizes. Check license/provenance, accessibility, no accidental third-party asset use. Include any font licenses and avoid network-dependent fonts; select a legible, OFL-licensed bundled sans family (for example, Inter) after checking licensing and script coverage, with a proper system fallback and variable-weight support. Account for Android font scaling, localized text and tight displays.
+
+### Screen sketches
+
+**Home / Browse**
+```
+Alium                                 [profile]
+by Marketplace Trader
+[ Search add-ons or creators      ][ Filters ]
+
+[ landscape artwork, clipped in rounded card ]
+Pack title
+Creator
+Category                         [ Download ]
+
+Browse    Downloads    Settings
+```
+One card per row on phones, adaptive columns for larger widths; bounded 16:9 thumbnails with placeholders, no overflow or cropping into neighboring UI. Search and filters retain catalog ordering/URL-equivalent state. Preserve real title, creator, category, image and only known metadata. Keep useful empty, request-bot link, retry and loading states; do not mislabel unavailable metadata.
+
+**Detail / download in place**
+```
+[ artwork ]
+Pack title · Creator
+Type    File size    Version (only if known)
+[ Download ]
+Preparing / Waiting for bot / Downloading  24%
+[ View downloads ]     [ Open Telegram if needed ]
+```
+Tap Download from the current screen; no separate request-file page. Show compact progress inline and in the Downloads area; retain access to the catalog while processing. If not signed in, route to a clearly explained sign-in sheet then resume only with user intent. Joining channels, an unavailable file or bot error opens an explanatory state with a user-initiated Telegram fallback.
+
+**Downloads** — separate navigation destination, with Active and Completed sections. Cards show real item name, category, progress, state and available actions (pause/resume only where TDLib actually supports them; cancel, retry, open/share or remove, with explicit deletion confirmation). Distinguish a missing or moved system file from a completed download. Never invent progress, sizes or completion. Provide empty and offline states.
+
+**Profile and Settings** — account page with the signed-in Telegram name, username and profile picture if available; fallback initials/avatar if none and signed-out state otherwise. Separate Settings page for Appearance (System/Light/Dark, persisted), Downloads/storage, Telegram session/privacy/sign out, Help and About. Logout confirmation explains effects; no incidental account reads beyond needed profile. Include existing main channel and support destinations. Do not expose other chats.
+
+### Motion like PixelPlayer
+
+Use independently authored Flutter transitions inspired by PixelPlayer's expressive motion: short interruptible navigation transitions, restrained card/button feedback, filter-sheet movement and progress updates. Avoid mimicking a music player or copying code/assets. Existing research examined GPL-3.0 PixelPlayerOSS at commit `1664e8e...`; direct source reuse would require license review. No flashing, autoplay, distracting long animations, glow or background effects. Respect Android/Flutter reduced-motion settings and provide static equivalents. Profile frame time and rebuilds on a modest device.
+
+## Authentication and Telegram session identity
+
+1. **Correct the previous developer-facing setup:** TDLib needs the **app developer's Telegram `api_id` and `api_hash`**, while each visitor signs in with **their own phone number, Telegram verification code and, if enabled, two-step password**. Normal users should not have to create their own API ID/hash. The current test APK asks for them because it was deliberately built without developer configuration; that is a prototype limitation, not the intended final experience. Telegram docs: https://core.telegram.org/api/obtaining_api_id.
+2. Design a build-time configuration for the owner's registered Alium application ID/hash without posting them to chat or committing them to Git. A GitHub Actions secret/variable or local private build configuration can prevent leaking values in source and build logs, but **anything shipped to a mobile client can be extracted**; repository/CI secrets do not make a value embedded in an APK truly secret. Check Telegram's current terms and credential-usage guidance; no hard-coded third-party/sample credentials. If owner configuration is missing, fail the release build with clear setup instructions or build an explicitly labeled non-login preview; do not ship a broken “ready” login.
+3. Country picker + dialing code plus separate national number field, searchable accessible country names; default based on locale with manual selection, handle shared calling codes, trunk prefixes, paste, region changes and E.164 validation without sending data to a third-party lookup. A maintained, licensed phone-number library may be evaluated. User data/OTP/2FA password are handled only by Telegram/TDLib; never log, analytics, store or request them in chat. Support Telegram's code, 2FA, email, rate-limit and other states truthfully, with safe cancel/retry and fallback.
+4. Session labeling and icon — correction: the user is right that session lists can show recognizable app/browser icons. In the reviewed [official Telegram Android SessionCell](https://github.com/DrKLO/Telegram/blob/21f7d109da6ab3506c9e9577f98c6a38771ab335/TMessagesProj/src/main/java/org/telegram/ui/Cells/SessionCell.java#L322-L415), the *viewing* client selects built-in drawable resources using session fields; Firefox is explicitly recognized by `device_model`, while Android defaults to a phone/tablet icon. A reviewed Nagram `SessionCell` version has similar fallback logic; other versions and clients may differ. These examples do not establish how exteraGram/Nagram logos seen by the user were selected. TDLib's session type is also described as useful for displaying an icon: https://core.telegram.org/tdlib/docs/classtd_1_1td__api_1_1session.html. There is no documented arbitrary icon upload field in `setTdlibParameters`: https://core.telegram.org/tdlib/docs/classtd_1_1td__api_1_1set_tdlib_parameters.html. A local Android launcher icon alone cannot be assumed to propagate to a different device's Telegram session UI.
+
+   Plan: register Alium as the developer application name, send accurate model, system version and app version, and test a new session in official Telegram and the exact client/version that showed the examples. Record its displayed name/device/icon. Investigate any documented registration or viewer-specific recognition path before deciding whether a flower icon can appear; do not spoof a different app or claim a universal result. The Alium launcher icon remains independently configurable.
+5. Profile: use TDLib `getMe` / user update and profile-photo file APIs after explicit account authorization; handle empty names/photos, photo permissions/loading failure, sign out, session revocation and user privacy. Do not sync profile information to a third-party backend. Keep session/database encryption key in secure device storage, disable backups for credentials and respect Telegram consent/security rules. This is a Telegram user client, not OAuth-only identity.
+
+## Fixes and metadata investigation
+
+- **Home thumbnail overflow:** reproduce with the user's screenshot and real device dimensions if provided; inspect the current fixed `SliverGrid` extent, unbounded image source aspect ratio, image constraints, long strings and text scaling. Add regression tests for 320–1440dp, high text scale, portrait/landscape, slow/missing/broken/oversized images; enforce bounded aspect ratio, clipping and no horizontal/vertical overflow. Do not claim the root cause until reproduced.
+- **Some metadata fails:** collect one or two actual failing item UUIDs/links, affected fields and screenshot/error, without credentials. Trace existing public Worker response → JSON parsing/model → widgets; mock null, non-string, missing, oversized, unsafe URL and malformed responses; ensure one bad optional field or record doesn't break the page. Correctly display “Not available,” never infer price or release date. Protect catalog behavior and preserve Worker `no-store` unless separately approved.
+- **Toolcoin metadata, not its other functions:** user supplied https://codeberg.org/applemeal234912239012/toolcoin/releases. Inspected release v1.6.2 at commit `73270d7617758fe1e16429f782c906a30b115a54`. Its [PlayFab API file](https://codeberg.org/applemeal234912239012/toolcoin/raw/tag/v1.6.2/lib/api/playfabapi.dart) has a UUID lookup via `/Catalog/GetPublishedItem` and catalog search via `/Catalog/Search`. It uses a PlayFab client and entity-token headers; this is not evidence of a public unauthenticated endpoint. The [search-result model](https://codeberg.org/applemeal234912239012/toolcoin/raw/tag/v1.6.2/lib/models/search_result.dart) names possible fields including title, creator, images, description, rating/count, dates, version, price and category, but a model is not proof a live response supplies them or that IDs match ours. The same API file contains unrelated capabilities and sensitive credential mechanisms; do not copy them, decryption, keys, downloader, purchases, account integration or unrelated Toolcoin functionality.
+- The v1.6.2 root listing does not show a license file; license and service terms remain unverified, not proof of an absence of rights. Before copying source seek explicit licensing/permission; preferably independently implement only a permitted metadata adapter. Verify legitimate endpoint access/auth, allowed terms, actual response samples, UUID semantics, mapping and rate limits; no embedded shared secrets or bypassing access controls. Compare with the existing Worker catalog fields, define precedence and optional-field fallback, mock 401/403/404/429/timeout/malformed responses and avoid fake prices/ratings. No real Minecraft/PlayFab call was tested (sandbox host restrictions). Keep current metadata and Telegram downloads functional if enrichment fails; no new paid service or deployment without separate approval.
+
+## One-tap request, correlation and queue safety
+
+The rev66 file-bot backup (`lib/start.js`) accepts UUID deep links, checks channel membership, may send a thumbnail, multiple individual file messages and promotional messages. Real bot rev68 and behavior remain unverified. The current app listens for later document messages from the bot and cannot prove which request they belong to; another Telegram client or delayed messages can produce a wrong association. Do **not** automatically save the first plausible message as the requested item. Same-screen UI is feasible, but safe fully automatic file selection requires a verified correlation protocol or an explicit confirmation fallback.
+
+1. Stage a compatible protocol with the owner: an optional per-request nonce within Telegram's start-parameter size limit and explicit bot response correlation markers for **each** item and an end/failure marker, tied to the UUID. Existing `?start=<uuid>` and `MT-` links, Telegram flows, memberships, channel posts, request bot, bindings and file deliveries must remain backward compatible. Do not expose Telegram file IDs or secrets in public metadata. The exact design must handle multiple documents, video/photo responses, partial failures, retries, reconnect, duplicate/delayed responses and simultaneous sessions. Review the actual deployed bot source and safely test on a separate test bot. This change would require **separate bot deployment approval**, no schema migration by default, and coordination with live rev68. If correlation cannot be proven, keep a visible in-place candidate-selection step and do not mislabel a file.
+2. Build a persistent local queue with stable job identifiers, item metadata, category, states and URI (not bot tokens or raw chat history). Define queued → requesting → waiting for bot → verifying → downloading → saving → completed/failed/canceled; recover interrupted work safely with explicit retry, idempotency and no accidentally duplicate bot requests. Use only confirmed channel/user actions and never bypass a join gate. Do not promise automatic progression when Telegram isn't ready or system restrictions stop work.
+3. TDLib background lifecycle must have exactly one client/database owner, prevent simultaneous isolate/process access, gracefully close/recover, observe native progress and cancellation. Choose Android user-initiated transfer job / foreground notification / WorkManager only after testing compatibility with TDLib and applicable SDK versions; Android may interrupt, force-stop or restrict background work. https://developer.android.com/develop/background-work/background-tasks/data-transfer-options. No blanket background reliability promise.
+
+## Save location and managing files
+
+User wants `Downloads/Alium/<category>/`. Map fixed known categories to safe readable folder names such as `Add-ons`, `Texture packs`, `Skin packs`, `Worlds`, `Mash-up packs`, `Templates`, `Applications`; unknown goes to `Other`. Sanitize file names; do not use untrusted category or filename as a raw path. Avoid overwrite and traversal; use collision-safe names and preserve correct type/extension.
+
+For Android 10+ investigate/test `MediaStore.Downloads` with `RELATIVE_PATH` under Download/Alium/category, app-owned content URIs and pending/commit/cleanup semantics. Stream/copy off the UI thread, recover on process death, avoid reading large files into RAM, handle out-of-space and partial writes. MediaStore organization is a hint controlled by Android/provider; test OEM behavior. For Android 9 or lower, either provide Storage Access Framework folder selection with a clear disclosure or set a supported minimum after checking user needs; never request broad All Files access. Android recommends SAF for general-purpose documents; choose the safest working approach and report deviations. Store URIs instead of absolute paths; downloaded files can persist after uninstall. https://developer.android.com/training/data-storage/shared/media.
+
+Allow users to open/share, remove from history, or delete **only Alium-created files**, with confirmation, safe permission handling and clear distinction between deleting a file and clearing a record. Account for files deleted/moved externally and inaccessible URIs. Reinstall or package migration may lose app ownership/history even though public downloads remain.
+
+## Direct Telegram link handling
+
+When the user chooses to open Telegram, try a properly constructed `tg://resolve?domain=Mc_addonbot&start=<encoded-uuid>` Android intent against an installed handler first, without a browser interstitial. Do not hardcode just one client if alternatives are installed; validate parameters and handle `ActivityNotFoundException`. If no handler exists or the user prefers, explain and offer the equivalent HTTPS link explicitly; no guarantee all devices have Telegram or that Android won't show a chooser. Same approach for request bot/channel links where appropriate. Test installed/uninstalled/alternate-client cases and never auto-trigger redirects without user action.
+
+## Implementation order and checks
+
+1. Confirm the working app version and identify only the remaining deltas; collect a metadata-failure example if available. Preserve the supplied package ID and existing working flows. Research actual live bot revision and safe correlation approach only if download changes are still needed.
+2. Create the independent brand system and flower icon, then refactor screens/components, solve image bounds, typography and scalable navigation. No application code changes during `/plan`.
+3. Add developer app credential build configuration without committing secrets; implement login/country picker, TDLib profile and privacy-safe session labeling. Test sign in/out, unsupported auth state and errors without logging personal data.
+4. Introduce in-place download UI and persistent queue; use explicit confirmation until exact-message correlation is verified. If bot modification is required, prepare isolated patches and seek separate approval before changing/deploying it.
+5. Implement Android Downloads/Alium category saving, progress/history/management with API-version fallbacks and safe filesystem rules; cover disk space, interruption, permissions and deletion.
+6. Investigate the supplied Toolcoin v1.6.2 metadata path, gated on license, legitimate access and real responses. Do not couple other final touches to an unverified service. Preserve existing catalog and truthful values.
+7. Tests: Flutter unit/widget tests and mocked TDLib for auth transitions, profile, thumbnail bounds, large text, partial JSON, animations/reduced motion, category mapping, concurrent/delayed/multiple/foreign messages, nonce correlation, queue restore, save failures and spoofed paths; Android instrumentation/device tests across API 29, 33, 34+ (plus any supported older versions), RTL, rotation, process death, background/foreground, offline, low disk, multiple file types and direct intent fallback. Use sample data and owner-approved test account/bot only. Verify compile/analyze/tests in GitHub Actions and provide a signed-for-test APK artifact; clearly separate mocked CI success from live phone checks. APK debug signature is for testing and not a Play release.
+8. Changing Android application ID creates a **new installation**, not an upgrade of the earlier experimental package; session/preferences/history will not automatically transfer. Do not copy a private Telegram session across package boundaries. Preserve public files, tell testers to sign in again, and validate package/launcher metadata. Android application ID details: https://developer.android.com/studio/build/application-id.html.
+
+## Open questions / blockers
+
+- Which version/build was tested as working? This checkout appears to contain the earlier prototype; verify the actual working source before changing it. An example item with missing metadata is useful but not a blocker for source analysis.
+- Toolcoin license, permitted authentication and live metadata remain unverified; the supplied source is identified and no longer an open question.
+- If relevant in the tested build, reliable automatic item-to-file mapping needs verified bot correlation or explicit confirmation; any bot deployment requires separate approval.
+- Owner must configure their own Telegram app identity privately for login builds. Never request API hash, Telegram code, password or sessions in chat.
+- Which Telegram client/version showed the exteraGram or Nagram logos? A redacted screenshot is helpful. Exact session icon selection differs by viewing client; the reviewed official code has no general app-icon registration path.

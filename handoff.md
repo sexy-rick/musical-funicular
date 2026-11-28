@@ -1,5 +1,10 @@
 # Handoff — Marketplace Trader
 
+## Alium Android final-touches build
+
+- User reports the prior app works and authorized the planned changes. Workspace contained the previously built prototype, verified byte-identical to remote for core Android source; no reset or cleanup. Added Alium branding, new application ID and flower icon, in-place bot request with explicit candidate confirmation, Downloads history and Android scoped storage, country picker, profile/settings, theme persistence and app-first Telegram links. Toolcoin metadata service is not integrated because its licensing, access and live responses remain unverified. No bot/Worker/schema/website deployment. Build and device verification details must be updated after CI. See `android-app/README.md`.
+
+
 ## Expressive UI research and plan (2026-11-27)
 
 - User confirmed upload. Independently fetched live `/home`, a pretty InsaneCraft slug and legacy UUID query page successfully; host added `?i=1`; live catalog showed 27 entries. Screenshot still shows three columns on phone, consistent with a wider effective CSS viewport but not conclusive; ask user to check Chrome Desktop site mode and verify real CSS viewport before changing layout. Telegram app opened and bot sent a file in earlier user screenshots; completed download/all items are not verified.

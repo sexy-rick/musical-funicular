@@ -11,6 +11,9 @@ dependencies:
   path_provider: ^2.1.5
   flutter_secure_storage: ^9.2.4
   url_launcher: ^6.3.2
+  shared_preferences: ^2.5.3
+  country_picker: ^2.0.27
+  device_info_plus: ^11.5.0
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -18,4 +21,4 @@ dev_dependencies:
 flutter:
   uses-material-design: true
   assets:
-    - assets/logo.jpg
+    - assets/alium_icon.png

@@ -2,13 +2,15 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 class CatalogItem {
-  const CatalogItem({required this.uuid, required this.title, this.creator = '', this.category = '', this.thumbnail = '', this.version = '', this.marketplaceUrl = ''});
+  const CatalogItem({required this.uuid, required this.title, this.creator = '', this.category = '', this.thumbnail = '', this.version = '', this.marketplaceUrl = '', this.fileSize = 0});
   final String uuid, title, creator, category, thumbnail, version, marketplaceUrl;
+  final int fileSize;
   factory CatalogItem.fromJson(Map<String, dynamic> j) => CatalogItem(
     uuid: (j['uuid'] ?? '').toString(), title: (j['title'] ?? '').toString(),
     creator: (j['creator'] ?? '').toString(), category: (j['category'] ?? '').toString(),
     thumbnail: (j['thumbnail_url'] ?? '').toString(), version: (j['version'] ?? '').toString(),
-    marketplaceUrl: (j['marketplace_url'] ?? '').toString());
+    marketplaceUrl: (j['marketplace_url'] ?? '').toString(),
+    fileSize: (j['file_size'] is num && (j['file_size'] as num) > 0) ? (j['file_size'] as num).toInt() : 0);
 }
 
 class CatalogPage {
