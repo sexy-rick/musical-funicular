@@ -181,7 +181,7 @@ void main() {
     expect(find.text('A catalog item'),findsOneWidget);
     await tester.tap(find.text('A catalog item')); await tester.pumpAndSettle();
     expect(find.text('A catalog item'),findsWidgets);
-    await tester.pageBack(); await tester.pumpAndSettle();
+    tester.state<NavigatorState>(find.byType(Navigator)).pop(); await tester.pumpAndSettle();
     expect(find.text('A catalog item'),findsOneWidget);
     await tester.pumpWidget(const SizedBox.shrink()); downloads.dispose(); telegram.dispose(); api.dispose();
   });

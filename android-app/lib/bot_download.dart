@@ -265,7 +265,7 @@ class BotDownload extends ChangeNotifier {
     if (_saving.isNotEmpty) throw TdException('Wait until saving finishes.');
     if (_canceling || uuid == null) return;
     _canceling=true;
-    final ids=selected.map((key)=>files[key]?.id).whereType<int>().toSet();
+    final ids=selected.where((key)=>!_saved.contains(key)).map((key)=>files[key]?.id).whereType<int>().toSet();
     // Invalidate pending callbacks immediately, but do not send the next bot
     // request until all cancellation queries have returned.
     _generation++; _deadline?.cancel(); _settle?.cancel();

@@ -10,6 +10,7 @@ class FakeTelegram extends TelegramClient {
   final requests=<Map<String,dynamic>>[];
   bool connected=true;
   Completer<void>? cancelGate;
+  Completer<Map<String,dynamic>>? nextDownload;
   @override bool get ready => connected;
   @override Stream<Map<String,dynamic>> get events => stream.stream;
   @override Future<Map<String,dynamic>> query(Map<String,dynamic> q) async {
@@ -18,7 +19,10 @@ class FakeTelegram extends TelegramClient {
       case 'searchPublicChat': return {'id': 1,'type':{'user_id':2}};
       case 'sendBotStartMessage': return {'id':10};
       case 'cancelDownloadFile': if(cancelGate != null) await cancelGate!.future; return {'@type':'ok'};
-      case 'downloadFile': return {'id':q['file_id'],'size':100,'local':{'downloaded_size':0,'is_downloading_completed':false}};
+      case 'downloadFile':
+        final gate=nextDownload; nextDownload=null;
+        if(gate!=null) return gate.future;
+        return {'id':q['file_id'],'size':100,'local':{'downloaded_size':0,'is_downloading_completed':false}};
       default: return {'@type':'ok'};
     }
   }
@@ -169,6 +173,19 @@ void main() {
     expect(downloads.history.map((e)=>e.name).toSet(),{'first.mcpack','second.mcpack'});
     expect(downloads.allDownloaded,isTrue);
     await tester.pump(const Duration(seconds:16)); downloads.dispose(); await client.stream.close();
+  });
+
+  testWidgets('stale download failure after pause cannot cancel resumed transfer', (tester) async {
+    final client=FakeTelegram(); final downloads=BotDownload(client);
+    await downloads.request('12345678-1234-1234-1234-123456789abc');
+    final old=Completer<Map<String,dynamic>>(); client.nextDownload=old;
+    client.stream.add(document(9)); await tester.pump();
+    await downloads.pause(); await downloads.resume(); await tester.pump();
+    expect(downloads.selected,contains(11));
+    old.completeError(Exception('old transfer failed')); await tester.pump();
+    expect(downloads.selected,contains(11));
+    expect(downloads.status,isNot('Download failed. Try again.'));
+    await downloads.cancelRequest(); downloads.dispose(); await client.stream.close();
   });
 
 }
