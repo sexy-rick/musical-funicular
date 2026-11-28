@@ -1,0 +1,141 @@
+// The catalog contains public metadata only. Downloads are handled by Telegram.
+(() => {
+  'use strict';
+  const API = 'https://mc-catalog-1474006216.aman-nsipai.workers.dev';
+  const params = new URLSearchParams(location.search);
+  const idPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const el = (tag, className, text) => { const n = document.createElement(tag); if (className) n.className = className; if (text != null) n.textContent = text; return n; };
+  const link = (text, href, className) => { const a = el('a', className, text); a.href = href; return a; };
+  const safeUrl = value => { try { const u = new URL(value); return u.protocol === 'https:' && !u.username && !u.password ? u.href : ''; } catch (_) { return ''; } };
+  const bytes = n => { n = Number(n); if (!Number.isFinite(n) || n <= 0) return ''; if (n < 1024) return n + ' B'; if (n < 1048576) return Math.round(n / 102.4) / 10 + ' KB'; if (n < 1073741824) return (n / 1048576).toFixed(2) + ' MB'; return (n / 1073741824).toFixed(2) + ' GB'; };
+  const valid = item => item && typeof item.uuid === 'string' && idPattern.test(item.uuid) && typeof item.title === 'string' && item.title.trim();
+  const slugify = text => String(text || '').normalize('NFKD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'');
+  function detailUrl(item) {
+    let title = slugify(item.title).slice(0, 64).replace(/-+$/,'') || 'addon';
+    const version = slugify(item.version).replace(/^v(?=\d)/,'').slice(0,24).replace(/-+$/,'');
+    if (version && !('-'+title+'-').includes('-'+version+'-') && !('-'+title+'-').includes('-v'+version+'-')) title += '-'+version;
+    return '/'+title+'-'+item.uuid.toLowerCase();
+  }
+  function telegram(item, label, className) {
+    const a=link(label,'https://t.me/Mc_addonbot?start='+encodeURIComponent(item.uuid),className); a.prepend(icon('download'));
+    a.target='_blank'; a.rel='noopener noreferrer'; return a;
+  }
+  function icon(name) {
+    const svg=document.createElementNS('http://www.w3.org/2000/svg','svg'); svg.setAttribute('class','icon'); svg.setAttribute('aria-hidden','true');
+    const use=document.createElementNS('http://www.w3.org/2000/svg','use'); use.setAttribute('href','/assets/icons-v12.svg#'+name); svg.append(use); return svg;
+  }
+  function shareControls(item, iconOnly = false) {
+    const box=el('div','share-controls'); const button=el('button',iconOnly ? 'share-button icon-only' : 'share-button',iconOnly ? '' : 'Share'); button.prepend(icon('share')); button.type='button'; button.setAttribute('aria-label','Share '+item.title);
+    const status=el('p','share-status'); status.setAttribute('role','status'); const fallback=el('div','share-fallback'); fallback.hidden=true;
+    const input=el('input','share-url'); input.type='text'; input.readOnly=true; input.setAttribute('aria-label','Link to '+item.title); input.value=new URL(detailUrl(item),location.origin).href;
+    const copy=el('button','share-copy','Copy link'); copy.type='button'; fallback.append(input,copy);
+    copy.addEventListener('click',async()=>{try {if(!navigator.clipboard || !navigator.clipboard.writeText) throw new Error(); await navigator.clipboard.writeText(input.value); status.textContent='Link copied.';} catch (_) {input.focus(); input.select(); status.textContent='Select and copy the link above.';}});
+    button.addEventListener('click',async()=>{
+      if(typeof navigator.share!=='function') {fallback.hidden=false; status.textContent='Copy the link to share.'; return;}
+      try {await navigator.share({title:item.title,text:'Discover '+item.title+'!',url:input.value});} catch(error) {if(error && error.name==='AbortError') return; fallback.hidden=false; status.textContent='Could not open sharing. Copy the link instead.';}
+    });
+    box.append(button,status,fallback); return box;
+  }
+  const finish = target => target.setAttribute('aria-busy', 'false');
+  const empty = (title, message) => { const box = el('div','empty'); box.append(el('h2','',title),el('p','',message),link('Browse the collection','/index.php#catalog','btn btn-primary')); return box; };
+  const noindex = () => { let meta = document.querySelector('meta[name="robots"]'); if (!meta) { meta = el('meta'); meta.name = 'robots'; document.head.append(meta); } meta.content = 'noindex'; };
+  const missing = target => { noindex(); target.replaceChildren(empty('Add-on not found','This listing may have moved or is no longer available.')); finish(target); };
+  function fail(target, run, status) {
+    const wrap = el('div','notice');
+    const title = status === 429 ? 'Too many requests' : 'The collection is taking a break';
+    const message = status === 429 ? 'Please wait a moment before trying again.' : 'We couldn’t load the catalog right now. Check your connection and try again.';
+    const retry = el('button','', 'Try again'); retry.type = 'button'; retry.addEventListener('click', run);
+    wrap.append(el('strong','',title),el('p','',message),retry); target.replaceChildren(wrap); finish(target);
+  }
+  function loading(target, message) { const box=el('div','loading'); box.append(el('p','',message)); target.setAttribute('aria-busy','true'); target.replaceChildren(box); }
+  function image(node, item, eager = false) {
+    const fallback = () => { const label=el('span','image-fallback','Image unavailable'); label.setAttribute('aria-hidden','true'); node.replaceChildren(label); };
+    const url=safeUrl(item.thumbnail_url); if (!url) { fallback(); return; }
+    const img=el('img'); img.alt=''; img.width=640; img.height=360; img.loading=eager ? 'eager' : 'lazy'; img.addEventListener('error',fallback,{once:true}); img.src=url; node.append(img); const guard=el('span','image-guard'); guard.setAttribute('aria-hidden','true'); node.append(guard); node.addEventListener('contextmenu',event=>event.preventDefault());
+  }
+  const categoryCodes=new Set(['ADD-ON','TEXTURE PACK','SKIN PACK','WORLD','MASHUP PACK','TEMPLATE','APPLICATION']);
+  function categoryLink(value, className='text-link') {const name=typeof value==='string'?value.trim():''; return categoryCodes.has(name) ? link(name,'/index.php?'+new URLSearchParams({cat:name})+'#catalog',className) : null;}
+  function card(item, index) {
+    const article=el('article','card'); const anchor=link('',detailUrl(item),'card-link'); anchor.addEventListener('click',event=>{ if(event.button!==0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return; try {sessionStorage.setItem('catalog-return',location.href);} catch (_) {} }); const cover=el('div','card-image');
+    const visibleColumns=window.innerWidth>=1024 ? 4 : window.innerWidth>=900 ? 3 : window.innerWidth>=600 ? 2 : 1;
+    image(cover,item,index < visibleColumns);
+    const body=el('div','card-body'); body.append(el('h3','',item.title));
+    const meta=el('p','card-creator'); const creator=typeof item.creator === 'string' && item.creator.trim() ? item.creator.trim() : ''; if(creator) meta.append(link(creator,'/index.php?'+new URLSearchParams({creator})+'#catalog','card-creator-link')); else meta.append(document.createTextNode('Creator not listed'));
+    anchor.append(cover,body);
+    const actions=el('div','card-actions'); const download=link('Download','/addon.php?uuid='+encodeURIComponent(item.uuid),'card-download'); download.prepend(icon('download')); download.setAttribute('aria-label','View download for '+item.title); download.addEventListener('click',event=>{if(event.button!==0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return; try {sessionStorage.setItem('catalog-return',location.href);} catch (_) {}}); const category=typeof item.category==='string' ? item.category.trim() : ''; const categoryNode=categoryLink(category,'card-category') || el('span','card-category',category); actions.append(categoryNode,shareControls(item,true),download);
+    article.append(anchor,meta,actions); return article;
+  }
+  async function request(path) {
+    const controller = new AbortController(); const timer = setTimeout(() => controller.abort(), 12000);
+    try { const r=await fetch(API+path,{headers:{'Accept':'application/json'},credentials:'omit',signal:controller.signal}); if (!r.ok) { const error=new Error('Catalog unavailable'); error.status=r.status; throw error; } const data=await r.json(); if (!data || data.ok !== true) throw new Error('Invalid response'); return data; }
+    finally { clearTimeout(timer); }
+  }
+  async function showGrid(target, items) {
+    const grid=el('div','grid'), filtered=items.filter(valid); if(!filtered.length) throw new Error('Invalid catalog items');
+    target.replaceChildren(grid); let index=0;
+    while(index<filtered.length) {if(!grid.isConnected) return; const limit=Math.min(index+4,filtered.length); while(index<limit) {grid.append(card(filtered[index],index)); index++;} if(index<filtered.length) await new Promise(resolve=>setTimeout(resolve,0));}
+  }
+  function listArgs() {
+    const args=new URLSearchParams(),q=(params.get('q')||'').trim().slice(0,100),creator=(params.get('creator')||'').trim().slice(0,255),cat=params.get('cat')||'',updated=params.get('updated')||'',sort=params.get('sort')||'';
+    if(q)args.set('q',q); if(creator)args.set('creator',creator); if(cat)args.set('cat',cat); if(updated)args.set('updated',updated); if(sort)args.set('sort',sort);
+    const raw=Number.parseInt(params.get('page')||'1',10),page=Number.isFinite(raw)?Math.max(1,Math.min(100000,raw)):1; args.set('page',String(page)); return {args,page,q,creator};
+  }
+  async function listing(target, searchMode) {
+    if(!target) return; const {args,page,q,creator}=listArgs();
+    if(searchMode && !q && !creator && !args.get('cat') && !args.get('updated')) {target.replaceChildren(empty('Looking for something?','Use the search bar above to get started.'));finish(target);return;}
+    const run=()=>listing(target,searchMode); loading(target,searchMode?'Looking through the collection…':'Loading the collection…');
+    try {
+      const early=window.__earlyCatalog; delete window.__earlyCatalog; const data=early && early.key===args.toString()?await early.promise:await request('/addons?'+args);
+      if(!Array.isArray(data.items) || !Number.isFinite(Number(data.total)) || Number(data.total)<0) throw new Error('Invalid response');
+      if(!data.items.length && Number(data.total)>0) {target.replaceChildren(empty('Page not available','Try an earlier page or browse the collection.'));finish(target);return;}
+      if(!data.items.length) {
+        const noMatch=empty('No matches found',args.get('cat') || args.get('updated') || creator ? 'Try another search or clear your filters.' : 'Try another search or filter.');
+        if(q) {const requestBox=el('div','request-prompt'); requestBox.append(el('p','','Can’t find it? Request it in Telegram by sending the bot its Minecraft Marketplace link.')); const requestLink=link('Request in Telegram','https://t.me/MARKETPLACE_TRADER_HELPER_BOT?start=suggest','btn btn-primary request-telegram'); requestLink.target='_blank'; requestLink.rel='noopener noreferrer'; requestBox.append(requestLink); noMatch.append(requestBox);}
+        const recommendations=el('section','recommendations'); recommendations.setAttribute('aria-label','You might like this');
+        recommendations.append(el('h2','','You might like this')); const results=el('div'); recommendations.append(results); target.replaceChildren(noMatch,recommendations); finish(target);
+        const loadRecent=async()=>{loading(results,'Loading suggestions…'); try {const recent=await request('/addons?page=1'); if(!Array.isArray(recent.items)) throw new Error('Invalid response'); if(!recent.items.length) {results.replaceChildren(el('p','','No suggestions available.'));finish(results);return;} await showGrid(results,recent.items);finish(results);} catch(error) {fail(results,loadRecent,error.status);}};
+        await loadRecent(); return;
+      }
+      await showGrid(target,data.items);
+      if(creator) target.prepend(el('p','filter-note','Studio: '+creator));
+      const pages=Math.max(1,Math.ceil(Number(data.total)/24));
+      if(pages>1) {const nav=el('nav','pagination'); nav.setAttribute('aria-label','Catalog pages'); const href=p=>{const next=new URLSearchParams(args);next.set('page',String(p));return (searchMode?'/search.php?':'/index.php?')+next+(searchMode?'':'#catalog');};if(page>1)nav.append(link('Previous',href(page-1)));nav.append(el('span','',`Page ${page} of ${pages}`));if(page<pages)nav.append(link('Next',href(page+1)));target.append(nav);} finish(target);
+    } catch(error) {fail(target,run,error.status);}
+  }
+  function catalog() {return listing(document.getElementById('catalog-results'),false);}
+  function search() {return listing(document.getElementById('search-results'),true);}
+  async function addon() {
+    const target=document.getElementById('addon-results'); if (!target) return;
+    const pretty=location.pathname.match(/^\/[a-z0-9]+(?:-[a-z0-9]+)*-([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i);
+    const id=pretty ? pretty[1] : (params.get('uuid') || '');
+    if(!idPattern.test(id)) { missing(target); return; }
+    loading(target,'Loading add-on…');
+    try {
+      const data=await request('/addons/'+encodeURIComponent(id)); const item=data.item; if(!valid(item) || item.uuid.toLowerCase()!==id.toLowerCase()) throw new Error('Invalid response');
+      document.title=item.title+' | Marketplace Trader'; const detail=el('div','detail'); const cover=el('div','detail-image'); image(cover,item,true); const content=el('div','detail-content');
+      content.append(el('span','eyebrow',item.category || 'ADD-ON'),el('h1','',item.title));
+      const details=el('dl','pack-details'); const row=(label,value)=>{const dt=el('dt','',label),dd=el('dd'); if(value instanceof Node) dd.append(value); else dd.textContent=value || 'Not available'; details.append(dt,dd);};
+      row('Name',item.title); const creator=typeof item.creator==='string' && item.creator.trim()?item.creator.trim():''; row('Studio',creator?link(creator,'/index.php?'+new URLSearchParams({creator})+'#catalog','text-link'):'Not available');
+      row('Category',categoryLink(item.category) || item.category || 'Not available'); row('Marketplace price','Not available'); row('File type',item.file_ext ? '.'+String(item.file_ext).replace(/^\./,'') : 'Not available'); row('File size',bytes(item.file_size)||'Not available'); if(item.version)row('Version',String(item.version)); content.append(details);
+      const payload=encodeURIComponent(item.uuid);
+      const actions=el('div','actions');
+      const telegramLink=telegram(item,'Download','btn btn-primary'); telegramLink.setAttribute('aria-label','Download '+item.title+' in Telegram');
+      actions.append(telegramLink,shareControls(item),link('Try opening the app directly','tg://resolve?domain=Mc_addonbot&start='+payload,'text-link'));
+      content.append(actions,el('p','action-note','The Telegram link opens in a new tab or the app. Allow your browser to open Telegram if prompted, then tap Start if it appears.'));
+      const help=el('details','telegram-help'); const summary=el('summary','','Telegram not opening?'); const disclosure=icon('expand_more'); disclosure.classList.add('disclosure-icon'); summary.append(disclosure); help.append(summary);
+      help.append(el('p','','Open the Telegram app and search for @Mc_addonbot.'));
+      const commandRow=el('div','manual-command-row'), command=el('p','manual-command','/start '+item.uuid); command.tabIndex=-1;
+      const copyCommand=el('button','command-copy','Copy'); copyCommand.type='button'; copyCommand.setAttribute('aria-label','Copy Telegram command'); copyCommand.prepend(icon('content_copy'));
+      const commandStatus=el('p','command-status'); commandStatus.setAttribute('role','status');
+      copyCommand.addEventListener('click',async()=>{try {if(!navigator.clipboard || !navigator.clipboard.writeText) throw new Error(); await navigator.clipboard.writeText(command.textContent); commandStatus.textContent='Copied.';} catch (_) {command.focus(); try {const range=document.createRange();range.selectNodeContents(command);const selection=window.getSelection();selection.removeAllRanges();selection.addRange(range);} catch (_) {} commandStatus.textContent='Select and copy the command above.';}});
+      commandRow.append(command,copyCommand); help.append(commandRow,commandStatus);
+      help.append(el('p','','Then follow the bot’s instructions. The file may not be available for every listing.'));
+      content.append(help);
+      const market=safeUrl(item.marketplace_url); if(market) { const p=el('p'); const a=link('View on Marketplace',market,'text-link'); a.target='_blank'; a.rel='noopener noreferrer'; p.append(a); content.append(p); }
+      const install=el('div','install'); install.append(el('h2','','How to get started')); const list=el('ol'); for(const step of ['Open the bot and follow its instructions.','Download the file in Telegram if it is available.','On supported devices, open a compatible pack with Minecraft and enable it in your world settings.']) list.append(el('li','',step)); install.append(list,link('Need help? Visit the FAQ','/faq.php','text-link')); content.append(install); detail.append(cover,content); target.replaceChildren(detail); finish(target);
+    } catch(error) { if(error.status===404) missing(target); else fail(target,addon,error.status); }
+  }
+  const back=document.querySelector('#addon-results') && document.querySelector('.back');
+  if(back) { try { const previous=sessionStorage.getItem('catalog-return'); sessionStorage.removeItem('catalog-return'); if(previous && document.referrer && history.length>1 && new URL(previous).origin+new URL(previous).pathname+new URL(previous).search===new URL(document.referrer).origin+new URL(document.referrer).pathname+new URL(document.referrer).search) { const parsed=new URL(previous); if(parsed.origin===location.origin && ['/home','/','/index.php','/search.php'].includes(parsed.pathname)) { back.href=previous; back.addEventListener('click',event=>{if(event.button===0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) {event.preventDefault(); history.back();}}); } } } catch (_) {} }
+  catalog(); search(); addon();
+})();

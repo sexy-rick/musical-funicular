@@ -4,8 +4,8 @@ const { execFileSync }=require('node:child_process');
 const http=require('node:http'); const { readFileSync }=require('node:fs'); const { join }=require('node:path');
 const assert=require('node:assert/strict'); const { chromium }=require('playwright-core'); const chromiumPackage=require('@sparticuz/chromium'); const chrome=chromiumPackage.default || chromiumPackage;
 const root=join(__dirname,'../website');
-const render=file=>execFileSync('npx',['--yes','@php-wasm/cli',join(root,file)],{encoding:'utf8'});
-const html={ '/index.php':render('index.php'), '/faq.php':render('faq.php'), '/addon.php':render('addon.php'), '/search.php':render('search.php'), '/about.php':render('about.php') };
+const render=file=>process.env.PHP_WASM_CLI ? execFileSync(process.env.PHP_WASM_CLI,[join(root,file)],{encoding:'utf8'}) : execFileSync('npx',['--yes','@php-wasm/cli',join(root,file)],{encoding:'utf8'});
+const html={ '/index.php':render('index.php'), '/faq.php':render('faq.php'), '/addon.php':render('addon.php'), '/search.php':render('search.php'), '/about.php':render('about.php'), '/alium.php':render('alium.php') };
 html['/errors/404.html']=readFileSync(join(root,'errors/404.html'),'utf8'); html['/']=html['/index.php']; html['/home']=html['/index.php'];
 // Mimic the intended Apache rewrite for browser interaction tests; this is not an Apache test.
 const prettyRoute=/^\/[a-z0-9]+(?:-[a-z0-9]+)*-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -14,7 +14,7 @@ const item={uuid:id,title:'A very long add-on name '.repeat(5),creator:'Maker',c
 // Simulate a returning visitor whose browser holds the old, unversioned assets.
 const oldCss=execFileSync('git',['show','e4d3499:telegram-catalog-bridge/website/assets/style.css']);
 const oldJs=execFileSync('git',['show','e4d3499:telegram-catalog-bridge/website/assets/catalog.js']);
-const server=http.createServer((req,res)=>{const path=new URL(req.url,'http://localhost').pathname; if(html[path] || prettyRoute.test(path)){res.setHeader('Content-Type','text/html');res.end(html[path] || html['/addon.php']);return;} if(path==='/assets/style.css'||path==='/assets/catalog.js'){res.setHeader('Content-Type',path.endsWith('.css')?'text/css':'application/javascript');res.end(path.endsWith('.css')?oldCss:oldJs);return;} if(['/assets/site-v13.css','/assets/catalog-v13.js','/assets/search-v10.js','/assets/filters-v11.js','/assets/theme-v10.js','/assets/icons-v10.svg','/assets/icons-v12.svg','/assets/brand-logo-v8.jpg'].includes(path)){res.setHeader('Content-Type',path.endsWith('.css')?'text/css':path.endsWith('.svg')?'image/svg+xml':path.endsWith('.jpg')?'image/jpeg':'application/javascript');res.end(readFileSync(join(root,path)));return;}res.statusCode=404;res.end();});
+const server=http.createServer((req,res)=>{const path=new URL(req.url,'http://localhost').pathname; if(html[path] || prettyRoute.test(path)){res.setHeader('Content-Type','text/html');res.end(html[path] || html['/addon.php']);return;} if(path==='/assets/style.css'||path==='/assets/catalog.js'){res.setHeader('Content-Type',path.endsWith('.css')?'text/css':'application/javascript');res.end(path.endsWith('.css')?oldCss:oldJs);return;} if(['/assets/site-v14.css','/assets/catalog-v14.js','/assets/search-v10.js','/assets/filters-v11.js','/assets/theme-v10.js','/assets/icons-v10.svg','/assets/icons-v12.svg','/assets/brand-logo-v8.jpg','/assets/alium-icon.png'].includes(path)){res.setHeader('Content-Type',path.endsWith('.css')?'text/css':path.endsWith('.svg')?'image/svg+xml':path.endsWith('.jpg')?'image/jpeg':path.endsWith('.png')?'image/png':'application/javascript');res.end(readFileSync(join(root,path)));return;}res.statusCode=404;res.end();});
 (async()=>{
  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
  const browser=await chromium.launch({executablePath:await chrome.executablePath(),args:chrome.args.filter(arg=>arg!=='--disable-web-security'),headless:true});
@@ -40,6 +40,22 @@ const server=http.createServer((req,res)=>{const path=new URL(req.url,'http://lo
    console.log(`${width}px: ${result.columns} columns, no overflow, reduced motion`);
   }
   await page.setViewportSize({width:1024,height:800}); item.category='An unexpectedly long unbroken category '.repeat(5); await page.goto(`http://127.0.0.1:${server.address().port}/index.php`); await page.waitForSelector('.card'); assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false,'long category overflow'); assert.equal(await page.locator('.card-category').first().evaluate(e=>e.tagName),'SPAN'); item.category=''; await page.reload(); await page.waitForSelector('.card'); assert.equal(await page.locator('.card .share-button').count(),8,'missing category keeps actions'); item.category='ADD-ON';
+  const appUrl=`http://127.0.0.1:${server.address().port}/alium.php`;
+  for(const width of [320,375,600,900,1440]) for(const theme of ['light','dark']) {
+   await page.setViewportSize({width,height:900}); await page.goto(appUrl);
+   await page.locator('#theme-choice').selectOption(theme);
+   await page.addStyleTag({content:'html {font-size: 125%}'});
+   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false,`Alium overflow ${width} ${theme}`);
+   assert.equal(await page.locator('.alium-download').getAttribute('href'),'https://github.com/Alchemiisst/Alium/releases/download/v0.1.0/app-release.apk');
+   assert.equal(await page.locator('.alium-icon').evaluate(e=>e.complete && e.naturalWidth>0),true);
+   assert.ok((await page.locator('.alium-download').boundingBox()).height>=44);
+  }
+  await page.goto(`http://127.0.0.1:${server.address().port}/index.php`);
+  assert.equal(await page.locator('.hero-actions a').nth(0).getAttribute('href'),'#catalog');
+  assert.equal(await page.locator('.hero-actions a').nth(1).getAttribute('href'),'/alium.php');
+  const noJs=await browser.newContext({javaScriptEnabled:false,viewport:{width:320,height:800}}); const noJsPage=await noJs.newPage(); await noJsPage.goto(appUrl);
+  assert.equal(await noJsPage.locator('.alium-download').getAttribute('href'),'https://github.com/Alchemiisst/Alium/releases/download/v0.1.0/app-release.apk');
+  assert.equal(await noJsPage.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false); await noJs.close();
   // Search without matches offers the real helper bot, while suggestions stay available.
   await page.route('**/addons?**',async route=>{const u=new URL(route.request().url()); if(u.searchParams.get('q')==='nothing123') return route.fulfill({status:200,headers:{'access-control-allow-origin':'*'},contentType:'application/json',body:JSON.stringify({ok:true,total:0,items:[]})}); return route.fallback();});
   for(const width of [320,375,600,1024,1440]) {await page.setViewportSize({width,height:800}); await page.goto(`http://127.0.0.1:${server.address().port}/search.php?q=nothing123`); await page.waitForSelector('.request-telegram'); assert.equal(await page.locator('.request-telegram').getAttribute('href'),'https://t.me/MARKETPLACE_TRADER_HELPER_BOT?start=suggest'); assert.equal(await page.locator('.request-telegram').getAttribute('target'),'_blank'); assert.match(await page.locator('.request-telegram').getAttribute('rel'),/noopener/); await page.waitForSelector('.recommendations .card'); assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false,`request section overflow at ${width}`); assert.ok((await page.locator('.request-telegram').boundingBox()).height>=44);}
@@ -59,16 +75,16 @@ const server=http.createServer((req,res)=>{const path=new URL(req.url,'http://lo
   const beforeSearch=listRequests; await page.goto(`${base}/search.php?q=chair`); await page.waitForSelector('.card'); assert.equal(listRequests-beforeSearch,1,'early search uses a single request'); await page.locator('.card-link').first().click(); await page.waitForSelector('.detail');
   assert.match(await page.locator('.back').getAttribute('href'),/search.php\?q=chair/); await page.locator('.back').click(); await page.waitForSelector('.card'); assert.match(page.url(),/search.php\?q=chair/);
   // Delay the client script: early search must finish while that script is still loading.
-  const ordering=[]; const record=response=>{if(response.url().includes('workers.dev/addons?q=early')) ordering.push('search'); if(response.url().endsWith('/assets/catalog-v13.js')) ordering.push('script');}; page.on('response',record);
-  await page.route('**/assets/catalog-v13.js',async route=>{await new Promise(resolve=>setTimeout(resolve,600)); await route.fulfill({path:join(root,'assets/catalog-v13.js'),contentType:'application/javascript'});});
+  const ordering=[]; const record=response=>{if(response.url().includes('workers.dev/addons?q=early')) ordering.push('search'); if(response.url().endsWith('/assets/catalog-v14.js')) ordering.push('script');}; page.on('response',record);
+  await page.route('**/assets/catalog-v14.js',async route=>{await new Promise(resolve=>setTimeout(resolve,600)); await route.fulfill({path:join(root,'assets/catalog-v14.js'),contentType:'application/javascript'});});
   await page.goto(`${base}/search.php?q=early`); await page.waitForSelector('.card'); assert.ok(ordering.indexOf('search')>=0 && ordering.indexOf('search')<ordering.indexOf('script'), 'search starts while the client script loads');
-  await page.unroute('**/assets/catalog-v13.js'); page.off('response',record);
+  await page.unroute('**/assets/catalog-v14.js'); page.off('response',record);
   await page.goto(`${base}/addon.php?uuid=${id}`); await page.waitForSelector('.detail'); assert.equal(await page.locator('.back').getAttribute('href'),'/index.php#catalog');
   assert.equal(await page.locator('.pack-details dt').count(),6); assert.match(await page.locator('.pack-details').innerText(),/Marketplace price[\s\S]*Not available/);
   assert.match(await page.locator('.pack-details a').nth(1).getAttribute('href'),/cat=ADD-ON/); assert.match(await page.locator('.pack-details a').first().getAttribute('href'),/creator=Maker/); await page.locator('.pack-details a').first().click(); await page.waitForSelector('.card'); assert.match(page.url(),/creator=Maker/); assert.match(await page.locator('.filter-note').innerText(),/Studio: Maker/);
 
   assert.equal((await page.goto(`${base}/home?i=1`)).status(),200); await page.waitForSelector('.card');
-  assert.equal(await page.locator('.brand img').getAttribute('src'),'/assets/brand-logo-v8.jpg'); assert.equal(await page.locator('link[rel="manifest"]').count(),1);
+  assert.equal(await page.locator('.brand img').getAttribute('src'),'/assets/brand-logo-v8.jpg','/assets/alium-icon.png'); assert.equal(await page.locator('link[rel="manifest"]').count(),1);
   await page.setViewportSize({width:1440,height:800}); assert.equal(await page.locator('.hero-explore').isVisible(),true); assert.equal(await page.evaluate(()=>getComputedStyle(document.documentElement).getPropertyValue('--primary').trim()),'#c88828'); await page.setViewportSize({width:375,height:800});
 
   await page.evaluate(()=>{Object.defineProperty(navigator,'share',{value:undefined,configurable:true});});
@@ -105,6 +121,7 @@ const server=http.createServer((req,res)=>{const path=new URL(req.url,'http://lo
   await page.keyboard.press('Tab'); assert.ok(await page.evaluate(()=>document.activeElement!==document.body));
   await page.goto(`http://127.0.0.1:${server.address().port}/addon.php?uuid=${id}`); await page.waitForSelector('.actions a');
   const primary=page.locator('.actions a').nth(0);
+  assert.equal((await primary.innerText()).trim(),'Download'); assert.match(await primary.getAttribute('aria-label'),/in Telegram$/);
   assert.equal(await primary.getAttribute('href'),'https://t.me/Mc_addonbot?start='+id);
   assert.equal(await primary.getAttribute('target'),'_blank');
   assert.match(await primary.getAttribute('rel'),/noopener/);
